@@ -1,0 +1,77 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pisces"
+version = "0.1.0"
+description = "AI-assisted,self healing human-governed security remediation patcher"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [
+    { name = "Mrinmoy Matilal", email = "mrinmoymatilal1315@gmail.com" }
+]
+keywords = [
+    "security", "vulnerability", "scanner", "patcher", "cli",
+    "llm", "ai", "python", "static-analysis"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+    "watchdog>=4.0.0",
+    "bandit>=1.7.0",
+    "httpx>=0.27.0",
+    "openai>=1.30.0",
+    "anthropic>=0.28.0",
+    "google-generativeai>=0.7.0",
+    "groq>=0.9.0",
+    "jsonschema>=4.22.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "mypy>=1.10.0",
+    "ruff>=0.4.0",
+]
+
+[project.scripts]
+pisces = "pisces.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/richochetclementine1315/pisces"
+Repository = "https://github.com/richochetclementine1315/pisces"
+Issues = "https://github.com/richochetclementine1315/pisces/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pisces"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
