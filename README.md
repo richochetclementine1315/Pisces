@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://github.com/user-attachments/assets/66723bfc-b15b-44bb-8dfa-cc74ff298ade"
-       width="360"
-       height="105"
+       width="350"
+       height="97"
        alt="Banner">
 </p>
 
