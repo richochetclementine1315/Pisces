@@ -23,7 +23,7 @@ from pisces.tui import(
 ## default pisces.toml template
 
 _DEFAULT_PISCES_TOML = """\
-    # pisces project configuration
+# pisces project configuration
 # API keys MUST come from environment variables — never put them here.
 # See: https://github.com/richochetclementine1315/pisces#configuration
 [llm]
@@ -63,7 +63,7 @@ def _default_context(project_root: Path)->dict:
     }
 
 """Main init logic"""
-def run_init(project_root: Path, *, force: bool=False)-> init:
+def run_init(project_root: Path, *, force: bool=False)-> int:
     """initialize pisces in *project_root*. , return 0 as success and 1 as errror."""  
     print_section("pisces init")
     console.print(f" [dim]Project root:[/] [cyan]{project_root}[/]")  
@@ -88,11 +88,14 @@ def run_init(project_root: Path, *, force: bool=False)-> init:
     context_file = pisces_dir / "context.json"
 
     # Creating the files
-    _create_dir(pisces_dir)
-    _create_dir(history_dir)
-    _create_dir(cache_dir)
-    _create_dir(context_file, project_root, force=force)
-
+    ok= all([
+        _create_dir(pisces_dir),
+        _create_dir(history_dir),
+        _create_dir(cache_dir),
+        _init_context_json(context_file, project_root, force=force),
+    ])
+    if not ok:
+        return 1 #error creating directories or context.json
     #4. .gitignore(means we are adding the .pisces in the .gitignore)
     _update_gitignore(project_root)
 
@@ -110,15 +113,16 @@ def run_init(project_root: Path, *, force: bool=False)-> init:
 
 """Some Helper Functions"""    
 def _init_pisces_toml(path: Path, *, force: bool)->None:
-    if path.exists() and not force:
+    existed = path.exists()
+    if existed and not force:
         print_step_ok(f"pisces.toml already exists - skipping (use --force)")
         return 
 
-    action = "Overwriting" if path.exists() else "creating"  
+    action = "Overwriting" if existed else "creating"  
     print_step_running(f"{action} pisces.toml ...") 
     try:
         path.write_text(_DEFAULT_PISCES_TOML, encoding="utf-8")
-        print_step_ok(f"pisces.toml {'overwritten' if path.exists() else 'created'}")
+        print_step_ok(f"pisces.toml {'overwritten' if existed else 'created'}")
     except OSError as e:
         print_step_fail(f"Could not write pisces.toml: {e}") 
 
@@ -126,12 +130,14 @@ def _init_pisces_toml(path: Path, *, force: bool)->None:
 def _create_dir(path: Path)->None:
     if path.exists():
         print_step_ok(f"{path.name}/ already exists - skipping")
-        return
+        return True
     try:
         path.mkdir(parents= True, exist_ok=True)
         print_step_ok(f"Created {path.name}/")
+        return True
     except OSError as e:
         print_step_fail(f"Could not create {path}: {e}")
+        return False
 
 
 def _init_context_json(path: Path, project_root: Path, *, force: bool)-> None:

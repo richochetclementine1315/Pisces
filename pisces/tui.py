@@ -61,7 +61,7 @@ _BANNER_LINES = [
     ("  ╚═╝      ╚═╝ ╚══════╝  ╚═════╝  ╚══════╝ ╚══════╝ ", "bold blue"),
 ]
 _TAGLINE = "  AI-assisted Python Security · Detect · Patch · Validate · Self-Heal"
-__VERSION_LINE = "  v0.1.0  ·  MIT License  ·  pip install pisces"
+_VERSION_LINE = "  v0.1.0  ·  MIT License  ·  pip install pisces"
 
 
 def print_banner() -> None:
@@ -72,7 +72,7 @@ def print_banner() -> None:
         banner_text.append(line + "\n", style=style)
     console.print(banner_text)
     console.print(f"[bold yellow]{_TAGLINE}[/]")
-    console.print(f"[dim]{__VERSION_LINE}[/]")
+    console.print(f"[dim]{_VERSION_LINE}[/]")
     console.print()
 
 

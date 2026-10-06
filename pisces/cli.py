@@ -78,7 +78,7 @@ def config(
 )->None:
 
     print_banner()
-    from pisces.comfig_cmd import run_config
+    from pisces.config_cmd import run_config
     raise typer.Exit(run_config(path.resolve(), show_only=show))
 
 """Scan command"""
@@ -104,7 +104,7 @@ def scan(
     """Scan Python files for security vulnerabilities."""
     print_banner()
     from pisces.scan_cmd import run_scan
-    raise typer.Exit(run_scan(target.resolve(), output=output, min_severity=min_severity))
+    raise typer.Exit(run_scan(target.resolve(), output=output, min_severity= min_severity))   
 
 
 """explain command"""
