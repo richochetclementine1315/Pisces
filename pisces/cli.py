@@ -112,20 +112,23 @@ def scan(
 def explain(
     finding: Annotated[
         str,
-        typer.Argument(help="Finding reference, e.g. [cyan]auth.py:42[/]."),
+        typer.Argument(
+            help="Finding reference, e.g. auth.py:42."
+        ),
     ],
-    llm: Annotated[
-        bool,
-        typer.Option("--llm", help="Enhance explanation with LLM reasoning."),
-    ] = False,
 ) -> None:
-    """
-    Explain a security finding in detail.
-    [bold]No source modifications are made.[/]
-    """
+    """Explain a security finding using the configured LLM."""
     print_banner()
+
     from pisces.explain_cmd import run_explain
-    raise typer.Exit(run_explain(finding, use_llm=llm))
+
+    raise typer.Exit(
+        run_explain(
+            finding,
+            project_root=Path.cwd(),
+        )
+    )
+
 
 """Fix command"""
 @app.command()
