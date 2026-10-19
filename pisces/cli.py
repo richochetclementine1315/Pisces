@@ -131,33 +131,54 @@ def explain(
 
 
 """Fix command"""
+
 @app.command()
 def fix(
     finding: Annotated[
         str,
-        typer.Argument(help="Finding reference, e.g [cyan]auth.py:45[/]."),
+        typer.Argument(help="Finding reference, e.g. auth.py:45."),
     ],
     dry_run: Annotated[
         bool,
-        typer.Option("--dry-run", help="Show proposed patch without applying directly."),
-    ]=False,
+        typer.Option(
+            "--dry-run",
+            help="Show the proposed patch without modifying the file.",
+        ),
+    ] = False,
     no_judge: Annotated[
         bool,
-        typer.Option("--no-judge", help="Skips LLM judge evaluation(NOT RECOMMENDED)."),
-    ]=False,
+        typer.Option(
+            "--no-judge",
+            help="Skip LLM judge evaluation (not recommended).",
+        ),
+    ] = False,
     max_attempts: Annotated[
         Optional[int],
-        typer.Option("--max-attempts", "-m", help="Overrides max self-healing attempts."),
+        typer.Option(
+            "--max-attempts",
+            "-m",
+            help="Override the maximum self-healing attempts.",
+            min=1,
+        ),
     ] = None,
-)-> None:
-
+) -> None:
+    """Generate, review, apply, and validate a security patch."""
     print_banner()
+
     from pisces.fix_cmd import run_fix
+
     raise typer.Exit(
-        run_fix(finding, dry_run=dry_run, skip_judge=no_judge, max_attempts=max_attempts)
+        run_fix(
+            finding,
+            project_root=Path.cwd(),
+            dry_run=dry_run,
+            skip_judge=no_judge,
+            max_attempts=max_attempts,
+        )
     )
 
-    """watch command"""
+
+"""watch command"""
 @app.command()
 def watch(
     path: Annotated[

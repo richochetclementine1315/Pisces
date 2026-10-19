@@ -384,7 +384,102 @@ def print_self_healing_failed_all(max_attempts: int) -> None:
         border_style="red",
         padding=(1, 3),
     ))
-    console.print()        
+    console.print()     
+
+
+    
+def print_hitl_approval(
+    finding: dict,
+    patch_summary: str,
+    judge_result: dict,
+) -> bool:
+    """Display the judge's assessment and ask the user to approve the patch."""
+    from rich.prompt import Confirm
+    from rich.table import Table
+    from rich.panel import Panel
+
+    console.print()
+
+    # Display the finding.
+    details = Table.grid(padding=(0, 2))
+    details.add_column(style="dim", justify="right")
+    details.add_column()
+
+    details.add_row("Rule:", str(finding.get("rule", "Unknown")))
+    details.add_row("File:", str(finding.get("file", "Unknown")))
+    details.add_row("Line:", str(finding.get("line", "Unknown")))
+    details.add_row("Severity:", str(finding.get("severity", "Unknown")))
+    details.add_row("Issue:", str(finding.get("description", "Not available")))
+
+    console.print(
+        Panel(
+            details,
+            title="[bold yellow]Human Review Required[/]",
+            border_style="yellow",
+            padding=(1, 2),
+        )
+    )
+
+    # Display the judge's decision.
+    judge_table = Table.grid(padding=(0, 2))
+    judge_table.add_column(style="dim", justify="right")
+    judge_table.add_column()
+
+    judge_table.add_row(
+        "Decision:",
+        str(judge_result.get("decision", "Unknown")),
+    )
+    judge_table.add_row(
+        "Security OK:",
+        str(judge_result.get("security_ok", "Unknown")),
+    )
+    judge_table.add_row(
+        "Functionality OK:",
+        str(judge_result.get("functionality_ok", "Unknown")),
+    )
+    judge_table.add_row(
+        "Scope OK:",
+        str(judge_result.get("scope_ok", "Unknown")),
+    )
+    judge_table.add_row(
+        "Regression risk:",
+        str(judge_result.get("regression_risk", "Unknown")),
+    )
+    judge_table.add_row(
+        "Patch quality:",
+        str(judge_result.get("patch_quality", "Unknown")),
+    )
+    judge_table.add_row(
+        "Completeness:",
+        str(judge_result.get("completeness", "Unknown")),
+    )
+
+    console.print(
+        Panel(
+            judge_table,
+            title="[bold cyan]LLM Judge Assessment[/]",
+            border_style="cyan",
+            padding=(1, 2),
+        )
+    )
+
+    console.print(
+        Panel(
+            str(judge_result.get("reasoning", "No reasoning provided.")),
+            title="[bold]Judge Reasoning[/]",
+            border_style="dim",
+            padding=(1, 2),
+        )
+    )
+
+    console.print(f"\n  [bold]Proposed patch:[/] {patch_summary}")
+
+    # Default to rejection if the user presses Enter.
+    return Confirm.ask(
+        "\n[bold yellow]Do you approve applying this patch?[/]",
+        default=False,
+    )
+   
 
 
 
