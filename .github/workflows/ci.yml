@@ -1,0 +1,73 @@
+name: Pisces CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Python ─────────────────────────────────────────────────
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # ── 3. Install pip + build tools ─────────────────────────────────────
+      - name: Upgrade pip and install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatchling ruff pytest pytest-cov
+
+      # ── 4. Install project + all runtime dependencies ────────────────────
+      #    pyproject.toml declares all dependencies under [project.dependencies]
+      #    and dev extras under [project.optional-dependencies] dev.
+      #    There is no requirements.txt — pip install -e ".[dev]" covers both.
+      - name: Install pisces and its dependencies
+        run: |
+          pip install -e ".[dev]"
+
+      # ── 5. Lint with ruff (project uses ruff, not flake8) ────────────────
+      - name: Lint with ruff
+        run: |
+          ruff check pisces/ tests/
+
+      # ── 6. Run tests with pytest ─────────────────────────────────────────
+      #    Tests that call real LLM providers are automatically skipped
+      #    because API keys are absent (EnvironmentError / RuntimeError).
+      #    conftest.py fixtures use tmp_path — no network needed.
+      - name: Run pytest with coverage
+        env:
+          # Expose secrets safely so tests that do call LLMs can use them.
+          # Add these in Settings → Secrets → Actions if you want live LLM tests.
+          GROQ_API_KEY:      ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY:    ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          pytest tests/ -v --tb=short --cov=pisces --cov-report=term-missing
+
+      # ── 7. Run bandit security scan on the pisces package itself ─────────
+      #    Pisces scans other code for vulnerabilities — it should be clean too.
+      - name: Security scan with bandit
+        run: |
+          pip install bandit
+          bandit -r pisces/ -ll -x pisces/test_vuln.py
