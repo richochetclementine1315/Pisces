@@ -27,7 +27,7 @@ class TestDiscoverPythonFiles:
         assert "c.txt" not in names
 
     def test_excludes_default_dirs(self, tmp_path):
-        excluded = [".venv", "__pycache__", ".git", "node_modules"]
+        excluded = [".venv", ".venv-test", ".venv310", "__pycache__", ".git", "node_modules"]
         for d in excluded:
             d_path = tmp_path / d
             d_path.mkdir()
@@ -141,6 +141,24 @@ class TestContextManager:
         cm.update(verbose=False)
         cm.load()
         assert cm.get_file_context("temp.py") is None
+
+    def test_virtual_environment_files_are_removed_from_context(self, project_root):
+        venv_file = project_root / ".venv-test" / "Lib" / "site-packages" / "third_party.py"
+        venv_file.parent.mkdir(parents=True)
+        venv_file.write_text("unsafe = True\n")
+        context = json.loads((project_root / ".pisces" / "context.json").read_text())
+        context["files"][".venv-test/Lib/site-packages/third_party.py"] = {
+            "path": ".venv-test/Lib/site-packages/third_party.py",
+            "hash": "stale",
+        }
+        (project_root / ".pisces" / "context.json").write_text(json.dumps(context))
+
+        cm = ContextManager(project_root)
+        stats = cm.update(verbose=False)
+
+        assert stats["discovered"] == 0
+        cm.load()
+        assert cm.get_file_context(".venv-test/Lib/site-packages/third_party.py") is None
 
     def test_get_file_context_returns_none_for_unknown(self, project_root):
         cm = ContextManager(project_root)

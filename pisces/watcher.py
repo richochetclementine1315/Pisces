@@ -13,7 +13,7 @@ from watchdog.events import (
 )
 from watchdog.observers import Observer
 
-from pisces.context_manager import ContextManager
+from pisces.context_manager import ContextManager, is_excluded_component
 from pisces.tui import (
     console,
     print_section,
@@ -145,7 +145,7 @@ class PiscesEventHandler(FileSystemEventHandler):
             return
 
         # Check every path components against exlusions
-        if any(part in self._excludes for part in rel.parts):
+        if any(is_excluded_component(part, self._excludes) for part in rel.parts):
             return
 
         # Route through debouncer no direct action here

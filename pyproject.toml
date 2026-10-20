@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pisces"
+name = "pisces-cli"
 version = "0.1.0"
 description = "AI-assisted,self healing human-governed Python security remediation patcher"
 readme = "README.md"

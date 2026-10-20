@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -90,18 +91,25 @@ def discover_python_files(
 
     found: list[Path] = []
 
-    def _is_excluded(path: Path) -> bool:
-        # Exclude if any component matches an exclusion pattern
-        for part in path.parts:
-            if part in excludes:
-                return True
-        return False
-
-    for py_file in root.rglob("*.py"):
-        if not _is_excluded(py_file.relative_to(root)):
-            found.append(py_file)
+    for directory, subdirectories, filenames in os.walk(root):
+        subdirectories[:] = [
+            name
+            for name in subdirectories
+            if not is_excluded_component(name, excludes)
+        ]
+        found.extend(
+            Path(directory) / filename
+            for filename in filenames
+            if filename.endswith(".py")
+        )
 
     return sorted(found)
+
+
+def is_excluded_component(part: str, excludes: set[str] | frozenset[str]) -> bool:
+    """Return whether a path component belongs to an excluded directory."""
+    return part in excludes or part.startswith(".venv")
+
 
 
 # ─────────────────────────────────────────────────────────────
