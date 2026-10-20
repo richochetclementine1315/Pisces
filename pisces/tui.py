@@ -480,6 +480,20 @@ def print_hitl_approval(
         default=False,
     )
    
+def _sev_badge(severity: str) -> str:
+    """Return a Rich-styled badge for a finding severity."""
+    colors = {
+        "CRITICAL": "bold white on red",
+        "HIGH": "bold red",
+        "MEDIUM": "bold yellow",
+        "LOW": "bold cyan",
+        "INFO": "dim",
+    }
+
+    severity = str(severity).upper()
+    color = colors.get(severity, "white")
+    return f"[{color}]{severity}[/]"
+
 
 
 

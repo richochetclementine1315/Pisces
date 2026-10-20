@@ -216,7 +216,13 @@ def history(
     """Show repair history for this project."""
     print_banner()
     from pisces.history_cmd import run_history
-    raise typer.Exit(run_history(path.resolve(), detail_id=detail, limit=limit))
+    raise typer.Exit(
+    run_history(
+        path.resolve(),
+        repair_id=detail,
+        limit=limit,
+    )
+)
 
 if __name__ == "__main__":
     app()

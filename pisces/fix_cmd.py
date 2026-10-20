@@ -13,6 +13,7 @@ State machine:
 from __future__ import annotations
 import subprocess
 import uuid
+import difflib
 from pathlib import Path
 from typing import Optional
 from pisces.config_manager import load_config
@@ -164,10 +165,19 @@ def run_fix(
             continue
         print_step_ok(f"Patch generated ({patch_code.count(chr(10))+1} lines)")
         # ── Step 2: Show diff ─────────────────────────────────
+        diff_text = "".join(
+            difflib.unified_diff(
+               original_block.splitlines(keepends=True),
+               patch_code.splitlines(keepends=True),
+               fromfile=f"a/{rel_path}",
+               tofile=f"b/{rel_path}",
+    )
+)
+
         print_diff(
-            diff_text=patch_code, 
-            filename=rel_path
-            )
+            diff_text=diff_text or "No differences detected.\n",
+            filename=rel_path,
+)
         if dry_run:
             console.print(
                 "[bold yellow]DRY RUN:[/] Proposed patch displayed;" 
