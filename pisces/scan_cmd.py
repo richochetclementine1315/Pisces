@@ -6,12 +6,11 @@ Implements `pisces scan` — discovery, context update, scanning, output.
 After scanning, findings are cached in .pisces/cache/findings.json so
 `pisces explain` and `pisces fix` can resolve them by file:line reference.
 """
+
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
-from typing import Optional
 
 from pisces.config_manager import load_config
 from pisces.context_manager import ContextManager, discover_python_files
@@ -20,7 +19,6 @@ from pisces.scanner import Scanner
 from pisces.tui import (
     console,
     make_scan_progress,
-    print_error,
     print_findings_table,
     print_section,
     print_step_ok,
@@ -36,9 +34,10 @@ _FINDINGS_CACHE = ".pisces/cache/findings.json"
 # Entry point
 # ─────────────────────────────────────────────────────────────
 
+
 def run_scan(
     target: Path,
-    output: Optional[Path] = None,
+    output: Path | None = None,
     min_severity: str = "LOW",
 ) -> int:
     """
@@ -78,7 +77,7 @@ def run_scan(
         try:
             cm = ContextManager(project_root, extra_excludes=excludes)
             cm.update(verbose=False)
-        except Exception as e:
+        except (OSError, RuntimeError, TypeError, ValueError) as e:
             print_warning(f"Context update skipped: {e}")
 
     print_step_ok("Project context updated")
@@ -123,19 +122,18 @@ def run_scan(
     # ── Filter by minimum severity ───────────────────────────
     try:
         min_sev = Severity.from_str(min_severity)
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         min_sev = Severity.LOW
 
     _sev_order = {
-        Severity.CRITICAL: 0, Severity.HIGH: 1,
-        Severity.MEDIUM: 2,   Severity.LOW: 3,
+        Severity.CRITICAL: 0,
+        Severity.HIGH: 1,
+        Severity.MEDIUM: 2,
+        Severity.LOW: 3,
         Severity.INFO: 4,
     }
     threshold = _sev_order[min_sev]
-    filtered = [
-        f for f in all_findings
-        if _sev_order.get(f.severity, 99) <= threshold
-    ]
+    filtered = [f for f in all_findings if _sev_order.get(f.severity, 99) <= threshold]
 
     # ── Save findings cache ───────────────────────────────────
     _save_findings_cache(project_root, all_findings)
@@ -143,10 +141,10 @@ def run_scan(
     # ── Display results ───────────────────────────────────────
     findings_as_dicts = [
         {
-            "severity":    f.severity.value,
-            "file":        f.file,
-            "line":        f.line,
-            "rule":        f.rule,
+            "severity": f.severity.value,
+            "file": f.file,
+            "line": f.line,
+            "rule": f.rule,
             "description": f.description,
         }
         for f in filtered
@@ -185,6 +183,7 @@ def run_scan(
 # Findings cache (used by explain + fix commands)
 # ─────────────────────────────────────────────────────────────
 
+
 def _save_findings_cache(project_root: Path, findings: list[Finding]) -> None:
     """Save findings to .pisces/cache/findings.json for lookup by other commands."""
     cache_path = project_root / _FINDINGS_CACHE
@@ -193,17 +192,14 @@ def _save_findings_cache(project_root: Path, findings: list[Finding]) -> None:
         data = {
             "findings": [f.to_dict() for f in findings],
             # Index by "file:line" for O(1) lookup
-            "index": {
-                f"{f.file}:{f.line}": f.to_dict()
-                for f in findings
-            },
+            "index": {f"{f.file}:{f.line}": f.to_dict() for f in findings},
         }
         cache_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     except OSError as e:
         print_warning(f"Could not save findings cache: {e}")
 
 
-def load_finding_by_ref(project_root: Path, ref: str) -> Optional[Finding]:
+def load_finding_by_ref(project_root: Path, ref: str) -> Finding | None:
     """
     Load a specific finding by its 'file:line' reference.
 

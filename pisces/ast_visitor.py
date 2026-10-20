@@ -13,12 +13,12 @@ What we extract per file:
     - all calls  (top-level call names for quick callee graph)
     - security_constructs  (patterns the scanner will refine further)
 """
+
 from __future__ import annotations
 
 import ast
 import textwrap
 from pathlib import Path
-from typing import Optional
 
 from pisces.models import (
     ClassInfo,
@@ -36,47 +36,48 @@ from pisces.models import (
 
 _SECURITY_CALLS: dict[str, str] = {
     # subprocess
-    "subprocess.run":         "subprocess_call",
-    "subprocess.call":        "subprocess_call",
-    "subprocess.Popen":       "subprocess_popen",
-    "subprocess.check_output":"subprocess_call",
-    "subprocess.check_call":  "subprocess_call",
+    "subprocess.run": "subprocess_call",
+    "subprocess.call": "subprocess_call",
+    "subprocess.Popen": "subprocess_popen",
+    "subprocess.check_output": "subprocess_call",
+    "subprocess.check_call": "subprocess_call",
     # os execution
-    "os.system":              "os_system",
-    "os.popen":               "os_popen",
-    "os.execv":               "os_exec",
-    "os.execve":              "os_exec",
+    "os.system": "os_system",
+    "os.popen": "os_popen",
+    "os.execv": "os_exec",
+    "os.execve": "os_exec",
     # deserialization
-    "pickle.load":            "pickle_load",
-    "pickle.loads":           "pickle_load",
-    "pickle.Unpickler":       "pickle_load",
-    "marshal.load":           "marshal_load",
-    "marshal.loads":          "marshal_load",
-    "yaml.load":              "yaml_unsafe_load",   # without Loader=safe
-    "shelve.open":            "shelve_open",
+    "pickle.load": "pickle_load",
+    "pickle.loads": "pickle_load",
+    "pickle.Unpickler": "pickle_load",
+    "marshal.load": "marshal_load",
+    "marshal.loads": "marshal_load",
+    "yaml.load": "yaml_unsafe_load",  # without Loader=safe
+    "shelve.open": "shelve_open",
     # code execution
-    "eval":                   "eval_call",
-    "exec":                   "exec_call",
-    "compile":                "compile_call",
-    "__import__":             "dynamic_import",
+    "eval": "eval_call",
+    "exec": "exec_call",
+    "compile": "compile_call",
+    "__import__": "dynamic_import",
     # filesystem
-    "open":                   "file_open",
-    "shutil.rmtree":          "dangerous_fs",
-    "os.remove":              "dangerous_fs",
-    "os.unlink":              "dangerous_fs",
+    "open": "file_open",
+    "shutil.rmtree": "dangerous_fs",
+    "os.remove": "dangerous_fs",
+    "os.unlink": "dangerous_fs",
     # network / TLS
-    "ssl.wrap_socket":        "ssl_call",
+    "ssl.wrap_socket": "ssl_call",
     "urllib.request.urlopen": "url_open",
-    "requests.get":           "requests_call",
-    "requests.post":          "requests_call",
-    "httpx.get":              "httpx_call",
-    "httpx.post":             "httpx_call",
+    "requests.get": "requests_call",
+    "requests.post": "requests_call",
+    "httpx.get": "httpx_call",
+    "httpx.post": "httpx_call",
 }
 
 
 # ─────────────────────────────────────────────────────────────
 # Helper: resolve a Call node to a dotted name string
 # ─────────────────────────────────────────────────────────────
+
 
 def _call_name(node: ast.Call) -> str:
     """Return best-effort string name for a Call node, e.g. 'subprocess.run'."""
@@ -106,6 +107,7 @@ def _node_source(source_lines: list[str], node: ast.AST) -> str:
 # Main visitor
 # ─────────────────────────────────────────────────────────────
 
+
 class PiscesASTVisitor(ast.NodeVisitor):
     """
     Walk a Python AST and extract structured intelligence.
@@ -122,15 +124,15 @@ class PiscesASTVisitor(ast.NodeVisitor):
 
     def __init__(self, source_lines: list[str]) -> None:
         self._lines = source_lines
-        self.functions:            list[FunctionInfo]       = []
-        self.classes:              list[ClassInfo]          = []
-        self.imports:              list[ImportInfo]         = []
-        self.calls:                list[str]                = []   # deduplicated
-        self.security_constructs:  list[SecurityConstruct] = []
+        self.functions: list[FunctionInfo] = []
+        self.classes: list[ClassInfo] = []
+        self.imports: list[ImportInfo] = []
+        self.calls: list[str] = []  # deduplicated
+        self.security_constructs: list[SecurityConstruct] = []
 
         self._seen_calls: set[str] = set()
         # Track current function scope for nested call attribution
-        self._current_function: Optional[FunctionInfo] = None
+        self._current_function: FunctionInfo | None = None
 
     # ── Functions ─────────────────────────────────────────
 
@@ -145,13 +147,11 @@ class PiscesASTVisitor(ast.NodeVisitor):
         node: ast.FunctionDef | ast.AsyncFunctionDef,
         is_async: bool,
     ) -> None:
-        decorators = [
-            ast.unparse(d) for d in node.decorator_list
-        ]
+        decorators = [ast.unparse(d) for d in node.decorator_list]
         args = [a.arg for a in node.args.args]
 
         # Docstring
-        docstring: Optional[str] = None
+        docstring: str | None = None
         if (
             node.body
             and isinstance(node.body[0], ast.Expr)
@@ -174,7 +174,7 @@ class PiscesASTVisitor(ast.NodeVisitor):
 
         prev = self._current_function
         self._current_function = fn
-        self.generic_visit(node)   # visit children → populates fn.calls
+        self.generic_visit(node)  # visit children → populates fn.calls
         self._current_function = prev
 
         self.functions.append(fn)
@@ -185,15 +185,15 @@ class PiscesASTVisitor(ast.NodeVisitor):
         bases = []
         for b in node.bases:
             try:
-                bases.append(ast.unparse(b))
-            except Exception:
-                pass
+                base = ast.unparse(b)
+            except (ValueError, RecursionError):
+                base = None
+            if base is not None:
+                bases.append(base)
 
         decorators = [ast.unparse(d) for d in node.decorator_list]
         methods = [
-            n.name
-            for n in ast.walk(node)
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            n.name for n in ast.walk(node) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
         ]
 
         cls = ClassInfo(
@@ -211,26 +211,27 @@ class PiscesASTVisitor(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
-            self.imports.append(ImportInfo(
-                module=alias.name,
-                names=[alias.asname or alias.name],
-                line=node.lineno,
-                is_from=False,
-            ))
+            self.imports.append(
+                ImportInfo(
+                    module=alias.name,
+                    names=[alias.asname or alias.name],
+                    line=node.lineno,
+                    is_from=False,
+                )
+            )
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         module = node.module or ""
-        names  = [
-            alias.asname or alias.name
-            for alias in node.names
-        ]
-        self.imports.append(ImportInfo(
-            module=module,
-            names=names,
-            line=node.lineno,
-            is_from=True,
-        ))
+        names = [alias.asname or alias.name for alias in node.names]
+        self.imports.append(
+            ImportInfo(
+                module=module,
+                names=names,
+                line=node.lineno,
+                is_from=True,
+            )
+        )
         self.generic_visit(node)
 
     # ── Calls ─────────────────────────────────────────────
@@ -247,19 +248,20 @@ class PiscesASTVisitor(ast.NodeVisitor):
             self.calls.append(name)
 
         # Add to current function's call list
-        if self._current_function is not None:
-            if name not in self._current_function.calls:
-                self._current_function.calls.append(name)
+        if self._current_function is not None and name not in self._current_function.calls:
+            self._current_function.calls.append(name)
 
         # Check for security-relevant patterns
         kind = _SECURITY_CALLS.get(name)
         if kind:
             snippet = _node_source(self._lines, node)
-            self.security_constructs.append(SecurityConstruct(
-                kind=kind,
-                line=node.lineno,
-                code=snippet,
-            ))
+            self.security_constructs.append(
+                SecurityConstruct(
+                    kind=kind,
+                    line=node.lineno,
+                    code=snippet,
+                )
+            )
 
         self.generic_visit(node)
 
@@ -268,35 +270,46 @@ class PiscesASTVisitor(ast.NodeVisitor):
     def visit_Assign(self, node: ast.Assign) -> None:
         """Flag assignments that may be hardcoded secrets."""
         _SECRET_NAMES = {
-            "password", "passwd", "secret", "api_key", "apikey",
-            "token", "auth_token", "access_token", "private_key",
-            "secret_key", "db_password", "database_password",
+            "password",
+            "passwd",
+            "secret",
+            "api_key",
+            "apikey",
+            "token",
+            "auth_token",
+            "access_token",
+            "private_key",
+            "secret_key",
+            "db_password",
+            "database_password",
         }
         for target in node.targets:
             if not isinstance(target, ast.Name):
                 continue
             var_name = target.id.lower()
             # Variable name looks like a secret
-            if any(s in var_name for s in _SECRET_NAMES):
-                # Value is a non-empty string literal
-                if (
-                    isinstance(node.value, ast.Constant)
-                    and isinstance(node.value.value, str)
-                    and node.value.value.strip()
-                ):
-                    snippet = _node_source(self._lines, node)
-                    self.security_constructs.append(SecurityConstruct(
+            if (
+                any(s in var_name for s in _SECRET_NAMES)
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+                and node.value.value.strip()
+            ):
+                snippet = _node_source(self._lines, node)
+                self.security_constructs.append(
+                    SecurityConstruct(
                         kind="hardcoded_secret_assignment",
                         line=node.lineno,
                         code=snippet,
                         details=f"Variable '{target.id}' assigned a string literal",
-                    ))
+                    )
+                )
         self.generic_visit(node)
 
 
 # ─────────────────────────────────────────────────────────────
 # Public extraction function
 # ─────────────────────────────────────────────────────────────
+
 
 def extract_file_context(
     file_path: Path,
@@ -318,17 +331,17 @@ def extract_file_context(
     except SyntaxError as e:
         fc.parse_error = str(e)
         return fc
-    except Exception as e:
+    except (TypeError, ValueError, RecursionError) as e:
         fc.parse_error = f"Unexpected parse error: {e}"
         return fc
 
     visitor = PiscesASTVisitor(source_lines)
     visitor.visit(tree)
 
-    fc.functions            = visitor.functions
-    fc.classes              = visitor.classes
-    fc.imports              = visitor.imports
-    fc.calls                = visitor.calls
-    fc.security_constructs  = visitor.security_constructs
+    fc.functions = visitor.functions
+    fc.classes = visitor.classes
+    fc.imports = visitor.imports
+    fc.calls = visitor.calls
+    fc.security_constructs = visitor.security_constructs
 
     return fc

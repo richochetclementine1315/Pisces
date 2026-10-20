@@ -19,10 +19,10 @@ Design:
     - Retry with exponential backoff for rate-limit / transient errors.
     - Timeout enforced on every call.
 """
+
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from pisces.config_manager import get_api_key
 from pisces.models import LLMRequest, LLMResponse
@@ -32,8 +32,8 @@ from pisces.models import LLMRequest, LLMResponse
 # ─────────────────────────────────────────────────────────────
 
 _OPENAI_COMPAT_BASE_URLS: dict[str, str] = {
-    "groq":     "https://api.groq.com/openai/v1",
-    "ollama":   "http://localhost:11434/v1",
+    "groq": "https://api.groq.com/openai/v1",
+    "ollama": "http://localhost:11434/v1",
     "lmstudio": "http://localhost:1234/v1",
 }
 
@@ -41,14 +41,15 @@ _OPENAI_COMPAT_BASE_URLS: dict[str, str] = {
 # Retry settings
 # ─────────────────────────────────────────────────────────────
 
-_MAX_RETRIES     = 3
-_RETRY_DELAY_S   = 2.0     # seconds, doubled on each retry
-_REQUEST_TIMEOUT = 120     # seconds
+_MAX_RETRIES = 3
+_RETRY_DELAY_S = 2.0  # seconds, doubled on each retry
+_REQUEST_TIMEOUT = 120  # seconds
 
 
 # ─────────────────────────────────────────────────────────────
 # Dispatch
 # ─────────────────────────────────────────────────────────────
+
 
 def call_llm(
     request: LLMRequest,
@@ -65,12 +66,12 @@ def call_llm(
     provider = provider.lower()
 
     dispatch = {
-        "openai":    _call_openai_compat,
-        "groq":      _call_openai_compat,
-        "ollama":    _call_openai_compat,
-        "lmstudio":  _call_openai_compat,
+        "openai": _call_openai_compat,
+        "groq": _call_openai_compat,
+        "ollama": _call_openai_compat,
+        "lmstudio": _call_openai_compat,
         "anthropic": _call_anthropic,
-        "gemini":    _call_gemini,
+        "gemini": _call_gemini,
     }
 
     fn = dispatch.get(provider)
@@ -84,19 +85,18 @@ def call_llm(
 # OpenAI-compatible (openai, groq, ollama, lmstudio)
 # ─────────────────────────────────────────────────────────────
 
+
 def _call_openai_compat(
     request: LLMRequest,
     provider: str,
     model: str,
 ) -> LLMResponse:
     try:
-        from openai import OpenAI, RateLimitError, APIError  # lazy import
+        from openai import APIError, OpenAI, RateLimitError  # lazy import
     except ImportError:
-        raise RuntimeError(
-            "openai SDK not installed. Run: pip install openai"
-        )
+        raise RuntimeError("openai SDK not installed. Run: pip install openai")
 
-    api_key  = get_api_key(provider) or "ollama"  # ollama/lmstudio don't need a key
+    api_key = get_api_key(provider) or "ollama"  # ollama/lmstudio don't need a key
     base_url = _OPENAI_COMPAT_BASE_URLS.get(provider)
 
     client_kwargs: dict = {
@@ -109,7 +109,7 @@ def _call_openai_compat(
     client = OpenAI(**client_kwargs)
 
     delay = _RETRY_DELAY_S
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
 
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
@@ -117,19 +117,19 @@ def _call_openai_compat(
                 model=model,
                 messages=[
                     {"role": "system", "content": request.system_prompt},
-                    {"role": "user",   "content": request.user_prompt},
+                    {"role": "user", "content": request.user_prompt},
                 ],
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
             )
             content = response.choices[0].message.content or ""
-            usage   = response.usage
+            usage = response.usage
 
             return LLMResponse(
                 content=content,
                 model=model,
                 provider=provider,
-                input_tokens=usage.prompt_tokens     if usage else 0,
+                input_tokens=usage.prompt_tokens if usage else 0,
                 output_tokens=usage.completion_tokens if usage else 0,
             )
 
@@ -152,6 +152,7 @@ def _call_openai_compat(
 # Anthropic
 # ─────────────────────────────────────────────────────────────
 
+
 def _call_anthropic(
     request: LLMRequest,
     provider: str,
@@ -160,15 +161,13 @@ def _call_anthropic(
     try:
         import anthropic as ant  # lazy import
     except ImportError:
-        raise RuntimeError(
-            "anthropic SDK not installed. Run: pip install anthropic"
-        )
+        raise RuntimeError("anthropic SDK not installed. Run: pip install anthropic")
 
     api_key = get_api_key("anthropic")
-    client  = ant.Anthropic(api_key=api_key, timeout=_REQUEST_TIMEOUT)
+    client = ant.Anthropic(api_key=api_key, timeout=_REQUEST_TIMEOUT)
 
-    delay     = _RETRY_DELAY_S
-    last_error: Optional[Exception] = None
+    delay = _RETRY_DELAY_S
+    last_error: Exception | None = None
 
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
@@ -197,14 +196,14 @@ def _call_anthropic(
             raise RuntimeError(f"[anthropic] API error: {e}") from e
 
     raise RuntimeError(
-        f"[anthropic] Rate limit hit — {_MAX_RETRIES} retries exhausted. "
-        f"Last: {last_error}"
+        f"[anthropic] Rate limit hit — {_MAX_RETRIES} retries exhausted. Last: {last_error}"
     )
 
 
 # ─────────────────────────────────────────────────────────────
 # Google Gemini
 # ─────────────────────────────────────────────────────────────
+
 
 def _call_gemini(
     request: LLMRequest,
@@ -215,8 +214,7 @@ def _call_gemini(
         import google.generativeai as genai  # lazy import
     except ImportError:
         raise RuntimeError(
-            "google-generativeai SDK not installed. "
-            "Run: pip install google-generativeai"
+            "google-generativeai SDK not installed. Run: pip install google-generativeai"
         )
 
     api_key = get_api_key("gemini")
@@ -233,19 +231,23 @@ def _call_gemini(
         generation_config=generation_config,
     )
 
-    delay     = _RETRY_DELAY_S
-    last_error: Optional[Exception] = None
+    delay = _RETRY_DELAY_S
+    last_error: Exception | None = None
 
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
             response = gemini_model.generate_content(request.user_prompt)
-            content  = response.text or ""
+            content = response.text or ""
             return LLMResponse(
                 content=content,
                 model=model,
                 provider="gemini",
-                input_tokens=response.usage_metadata.prompt_token_count     if response.usage_metadata else 0,
-                output_tokens=response.usage_metadata.candidates_token_count if response.usage_metadata else 0,
+                input_tokens=response.usage_metadata.prompt_token_count
+                if response.usage_metadata
+                else 0,
+                output_tokens=response.usage_metadata.candidates_token_count
+                if response.usage_metadata
+                else 0,
             )
         except Exception as e:
             if "quota" in str(e).lower() or "rate" in str(e).lower():
@@ -257,6 +259,5 @@ def _call_gemini(
             raise RuntimeError(f"[gemini] API error: {e}") from e
 
     raise RuntimeError(
-        f"[gemini] Rate limit hit — {_MAX_RETRIES} retries exhausted. "
-        f"Last: {last_error}"
+        f"[gemini] Rate limit hit — {_MAX_RETRIES} retries exhausted. Last: {last_error}"
     )

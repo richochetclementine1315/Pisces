@@ -1,11 +1,9 @@
 """Tests for pisces.context_manager — discovery, hashing, incremental updates."""
+
 from __future__ import annotations
 
 import json
 import time
-from pathlib import Path
-
-import pytest
 
 from pisces.context_manager import (
     ContextManager,
@@ -40,29 +38,27 @@ class TestDiscoverPythonFiles:
 
         assert all(f.name == "real.py" for f in files)
 
-    
     def test_extra_excludes_respected(self, tmp_path):
-         build_dir = tmp_path / "build"
-         build_dir.mkdir()
+        build_dir = tmp_path / "build"
+        build_dir.mkdir()
 
-         (build_dir / "out.py").write_text(
-           "x = 1\n",
-           encoding="utf-8",
+        (build_dir / "out.py").write_text(
+            "x = 1\n",
+            encoding="utf-8",
         )
-         (tmp_path / "main.py").write_text(
-           "x = 1\n",
-           encoding="utf-8",
+        (tmp_path / "main.py").write_text(
+            "x = 1\n",
+            encoding="utf-8",
         )
 
-         files = discover_python_files(
+        files = discover_python_files(
             tmp_path,
             extra_excludes=["build"],
         )
-         names = {f.name for f in files}
+        names = {f.name for f in files}
 
-         assert "out.py" not in names
-         assert "main.py" in names
-
+        assert "out.py" not in names
+        assert "main.py" in names
 
     def test_returns_sorted_list(self, tmp_path):
         for name in ["z.py", "a.py", "m.py"]:
@@ -100,12 +96,12 @@ class TestContextManager:
         (project_root / "app.py").write_text("x = 1\n")
         (project_root / "utils.py").write_text("def helper(): pass\n")
 
-        cm    = ContextManager(project_root)
+        cm = ContextManager(project_root)
         stats = cm.update(verbose=False)
 
         assert stats["discovered"] >= 2
-        assert stats["updated"]    >= 2
-        assert stats["errors"]     == 0
+        assert stats["updated"] >= 2
+        assert stats["errors"] == 0
 
     def test_incremental_update_skips_unchanged(self, project_root):
         (project_root / "app.py").write_text("x = 1\n")
@@ -160,7 +156,7 @@ class TestContextManager:
         assert ctx_path.exists()
         data = json.loads(ctx_path.read_text())
         assert "files" in data
-        assert "x.py"  in data["files"]
+        assert "x.py" in data["files"]
 
     def test_update_single_file_detects_change(self, project_root):
         f = project_root / "single.py"

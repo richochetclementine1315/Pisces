@@ -10,19 +10,21 @@ State machine:
     → ROLLED_BACK  (terminal, all attempts exhausted)
     → REJECTED     (terminal, human said No)
 """
+
 from __future__ import annotations
+
+import difflib
 import subprocess
 import uuid
-import difflib
 from pathlib import Path
-from typing import Optional
+
 from pisces.config_manager import load_config
 from pisces.context_manager import ContextManager
 from pisces.explain_cmd import (
+    _CONTEXT_LINES,
     _get_file_context,
     _get_source_snippet,
     _parse_ref,
-    _CONTEXT_LINES,
 )
 from pisces.judge import judge_patch
 from pisces.llm_client import call_llm
@@ -52,6 +54,7 @@ from pisces.tui import (
     print_warning,
     spinner,
 )
+
 # ─────────────────────────────────────────────────────────────
 # Patch generation system prompt
 # ─────────────────────────────────────────────────────────────
@@ -71,15 +74,18 @@ Do NOT include anything outside the markers.
 Do NOT include the markers themselves as part of the code.
 Output ONLY the patched code block, nothing else.
 """
+
+
 # ─────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────
 def run_fix(
     ref: str,
     project_root: Path,
-    dry_run: bool = False,     # Generate and display a patch without modifying the source file.
+    dry_run: bool = False,  # Generate and display a patch without modifying the source file.
     skip_judge: bool = False,  # Skips the LLM based patch evaluation
-    max_attempts: Optional[int] = None,  #Overrides the configured retry limit for self-healing attempts.
+    max_attempts: int
+    | None = None,  # Overrides the configured retry limit for self-healing attempts.
     auto_approve: bool = False,  # Skips human-in-the-loop approval. This is not recommended for production use.
 ) -> int:
     """
@@ -93,14 +99,11 @@ def run_fix(
         print_error(f"Invalid reference: '{ref}'  (expected: path/to/file.py:42)")
         return 1
     rel_path = str(file_path.relative_to(project_root))
-    lookup   = f"{rel_path}:{line_no}"
+    lookup = f"{rel_path}:{line_no}"
     # ── Load finding ─────────────────────────────────────────
     finding = load_finding_by_ref(project_root, lookup)
     if finding is None:
-        print_error(
-            f"No finding cached at '{lookup}'.\n"
-            "  Run 'pisces scan .' first."
-        )
+        print_error(f"No finding cached at '{lookup}'.\n  Run 'pisces scan .' first.")
         return 1
     # ── Load config ──────────────────────────────────────────
     try:
@@ -108,30 +111,30 @@ def run_fix(
     except RuntimeError as e:
         print_error(str(e))
         return 1
-    provider        = cfg.llm.provider
-    model           = cfg.llm.model
-    max_attempts    = (
-        max_attempts
-        if max_attempts is not None
-        else cfg.repair.max_attempts
-        )
-    require_hitl    = cfg.repair.require_approval and not auto_approve
-    test_command    = cfg.validation.test_command
-    repair_id       = str(uuid.uuid4())[:8]
-    checkpoint_path: Optional[Path] = None
-    state           = RepairState.DETECTED
-    console.print(f"  [dim]Finding:[/] [cyan]{lookup}[/]  [dim]Severity:[/] {_severity_badge(finding.severity)}")
+    provider = cfg.llm.provider
+    model = cfg.llm.model
+    max_attempts = max_attempts if max_attempts is not None else cfg.repair.max_attempts
+    require_hitl = cfg.repair.require_approval and not auto_approve
+    test_command = cfg.validation.test_command
+    repair_id = str(uuid.uuid4())[:8]
+    checkpoint_path: Path | None = None
+    state = RepairState.DETECTED
+    console.print(
+        f"  [dim]Finding:[/] [cyan]{lookup}[/]  [dim]Severity:[/] {_severity_badge(finding.severity)}"
+    )
     console.print(f"  [dim]Provider:[/] [magenta]{provider}[/] / [cyan]{model}[/]")
-    console.print(f"  [dim]Max attempts:[/] {max_attempts}  |  [dim]HITL:[/] {'yes' if require_hitl else 'no (--auto-approve)'}")
+    console.print(
+        f"  [dim]Max attempts:[/] {max_attempts}  |  [dim]HITL:[/] {'yes' if require_hitl else 'no (--auto-approve)'}"
+    )
     console.print()
     # ── Locate function boundaries ───────────────────────────
     fn_start, fn_end = locate_function_lines(file_path, line_no)
-    original_block   = _read_lines(file_path, fn_start, fn_end)
-    source_snippet   = _get_source_snippet(file_path, line_no, context=_CONTEXT_LINES)
-    file_ctx         = _get_file_context(project_root, rel_path)
+    original_block = _read_lines(file_path, fn_start, fn_end)
+    source_snippet = _get_source_snippet(file_path, line_no, context=_CONTEXT_LINES)
+    file_ctx = _get_file_context(project_root, rel_path)
     # The repair loop
-    state      = RepairState.DETECTED
-    prior_fail: Optional[str] = None
+    state = RepairState.DETECTED
+    prior_fail: str | None = None
     for attempt in range(1, max_attempts + 1):
         console.rule(
             f"[bold]Attempt {attempt} / {max_attempts}[/]",
@@ -163,29 +166,29 @@ def run_fix(
             state = RepairState.FAILED
             prior_fail = f"Patch syntax error: {err}"
             continue
-        print_step_ok(f"Patch generated ({patch_code.count(chr(10))+1} lines)")
+        print_step_ok(f"Patch generated ({patch_code.count(chr(10)) + 1} lines)")
         # ── Step 2: Show diff ─────────────────────────────────
         diff_text = "".join(
             difflib.unified_diff(
-               original_block.splitlines(keepends=True),
-               patch_code.splitlines(keepends=True),
-               fromfile=f"a/{rel_path}",
-               tofile=f"b/{rel_path}",
-    )
-)
+                original_block.splitlines(keepends=True),
+                patch_code.splitlines(keepends=True),
+                fromfile=f"a/{rel_path}",
+                tofile=f"b/{rel_path}",
+            )
+        )
 
         print_diff(
             diff_text=diff_text or "No differences detected.\n",
             filename=rel_path,
-)
+        )
         if dry_run:
             console.print(
-                "[bold yellow]DRY RUN:[/] Proposed patch displayed;" 
+                "[bold yellow]DRY RUN:[/] Proposed patch displayed;"
                 "the original file has NOT been modified."
             )
             return 0
         # ── Step 3: Judge ─────────────────────────────────────
-        
+
         state = RepairState.JUDGED
 
         if skip_judge:
@@ -194,54 +197,50 @@ def run_fix(
         else:
             print_step_running("Judge reviewing the patch ...")
             try:
-               with spinner("Running judge LLM..."):
-                  judge = judge_patch(
-                       finding=finding,
-                       original_code=original_block,
-                       patched_code=patch_code,
-                       provider=provider,
-                       model=model,
-                       prior_failure=prior_fail,
-                   )
-            except Exception as e:
+                with spinner("Running judge LLM..."):
+                    judge = judge_patch(
+                        finding=finding,
+                        original_code=original_block,
+                        patched_code=patch_code,
+                        provider=provider,
+                        model=model,
+                        prior_failure=prior_fail,
+                    )
+            except (RuntimeError, OSError, ValueError, TypeError) as e:
                 print_warning(f"Judge failed: {e} — proceeding anyway.")
                 judge = _fallback_judge()
 
         _print_judge_result(judge)
 
         if not judge.approved:
-            print_warning(
-                f"Judge REJECTED this patch: {judge.reasoning[:200]}"
-            )
-            state      = RepairState.FAILED
+            print_warning(f"Judge REJECTED this patch: {judge.reasoning[:200]}")
+            state = RepairState.FAILED
             prior_fail = f"Judge rejected: {judge.reasoning}"
             if attempt < max_attempts:
                 console.print("  [dim]Retrying with judge feedback...[/]\n")
                 continue
             else:
-                _save_and_exit(project_root, repair_id, finding, patch_code,
-                               judge, None, state.value)
+                _save_and_exit(
+                    project_root, repair_id, finding, patch_code, judge, None, state.value
+                )
                 return 1
         # ── Step 4: HITL Approval ─────────────────────────────
         state = RepairState.AWAITING_APPROVAL
         if require_hitl:
             approved = print_hitl_approval(
                 finding=finding.to_dict(),
-                patch_summary=f"{patch_code.count(chr(10))+1} lines, "
-                              f"quality={judge.patch_quality}, risk={judge.regression_risk}",
+                patch_summary=f"{patch_code.count(chr(10)) + 1} lines, "
+                f"quality={judge.patch_quality}, risk={judge.regression_risk}",
                 judge_result=judge.to_dict(),
             )
         else:
-            console.print(
-                "  [dim]--auto-approve active — skipping human review.[/]"
-            )
+            console.print("  [dim]--auto-approve active — skipping human review.[/]")
             approved = True
         if not approved:
             state = RepairState.REJECTED
             console.print()
             console.print("[high]✗  Patch rejected by user.[/]")
-            _save_and_exit(project_root, repair_id, finding, patch_code,
-                           judge, False, state.value)
+            _save_and_exit(project_root, repair_id, finding, patch_code, judge, False, state.value)
             return 1
         state = RepairState.APPROVED
         # ── Step 5: Checkpoint ────────────────────────────────
@@ -260,8 +259,7 @@ def run_fix(
             if checkpoint_path:
                 rollback(file_path, checkpoint_path)
             state = RepairState.ROLLED_BACK
-            _save_and_exit(project_root, repair_id, finding, patch_code,
-                           judge, True, state.value)
+            _save_and_exit(project_root, repair_id, finding, patch_code, judge, True, state.value)
             return 1
         # ── Step 7: Validate (run tests) ──────────────────────
         state = RepairState.VALIDATING
@@ -276,38 +274,32 @@ def run_fix(
                 f"  The vulnerability in [cyan]{rel_path}:{line_no}[/] has been fixed.\n"
                 f"  Run [cyan]pisces scan .[/] to confirm no remaining issues."
             )
-            _save_and_exit(project_root, repair_id, finding, patch_code,
-                           judge, True, state.value)
+            _save_and_exit(project_root, repair_id, finding, patch_code, judge, True, state.value)
             # Invalidate context for the patched file
             try:
                 cm = ContextManager(project_root)
                 cm.update_single_file(file_path)
-            except Exception:
-                pass
+            except (OSError, RuntimeError, ValueError):
+                print_warning("Could not update project context after the repair.")
             return 0
         # ── Tests failed → healing loop ───────────────────────
         state = RepairState.FAILED
-        print_step_fail(f"Test suite failed after patching.")
+        print_step_fail("Test suite failed after patching.")
         console.print(f"  [dim]{test_output[:400]}[/]\n")
         if checkpoint_path:
             rollback(file_path, checkpoint_path)
-        state      = RepairState.HEALING
-        prior_fail = (
-            f"Patch was applied but tests failed:\n{test_output[:600]}"
-        )
+        state = RepairState.HEALING
+        prior_fail = f"Patch was applied but tests failed:\n{test_output[:600]}"
         if attempt < max_attempts:
-            console.print(
-                f"  [dim]Healing — will regenerate patch with failure context.[/]\n"
-            )
+            console.print("  [dim]Healing — will regenerate patch with failure context.[/]\n")
             continue
     # ── All attempts exhausted ────────────────────────────────
     state = RepairState.ROLLED_BACK
-    print_step_fail(
-        f"All {max_attempts} repair attempt(s) exhausted — "
-        "original file restored."
-    )
+    print_step_fail(f"All {max_attempts} repair attempt(s) exhausted — original file restored.")
     _save_and_exit(project_root, repair_id, finding, "", None, None, state.value)
     return 1
+
+
 # ─────────────────────────────────────────────────────────────
 # Patch generation
 # ─────────────────────────────────────────────────────────────
@@ -320,8 +312,8 @@ def _generate_patch(
     original_block: str,
     provider: str,
     model: str,
-    prior_failure: Optional[str],
-) -> Optional[str]:
+    prior_failure: str | None,
+) -> str | None:
     prior_section = ""
     if prior_failure:
         prior_section = f"""
@@ -361,7 +353,7 @@ Produce the fixed replacement for the function shown above. Wrap it EXACTLY in {
     try:
         with spinner("Generating patch..."):
             response = call_llm(request, provider=provider, model=model)
-    except (EnvironmentError, RuntimeError) as e:
+    except (OSError, RuntimeError) as e:
         print_step_fail(str(e))
         return None
     return extract_patch_code(response.content)
@@ -383,7 +375,8 @@ def _run_tests(project_root: Path, test_command: str) -> tuple[bool, str]:
             capture_output=True,
             text=True,
             timeout=120,
-            shell=False,   # deliberately NOT shell=True
+            shell=False,  # deliberately NOT shell=True
+            check=False,
         )
         output = (result.stdout + "\n" + result.stderr).strip()
         return result.returncode == 0, output
@@ -391,7 +384,7 @@ def _run_tests(project_root: Path, test_command: str) -> tuple[bool, str]:
         return True, f"Test command '{test_command}' not found — skipping validation."
     except subprocess.TimeoutExpired:
         return False, "Test command timed out after 120 seconds."
-    except Exception as e:
+    except (OSError, ValueError, subprocess.SubprocessError) as e:
         return True, f"Test runner error (non-fatal): {e}"
 
 
@@ -410,6 +403,7 @@ def _print_judge_result(judge: JudgeResult) -> None:
     console.print(f"  [dim]{judge.reasoning[:180]}[/]")
     console.print()
 
+
 def _severity_badge(sev: Severity) -> str:
     colors = {
         Severity.CRITICAL: "bold red",
@@ -422,6 +416,7 @@ def _severity_badge(sev: Severity) -> str:
     color = colors.get(sev, "white")
     return f"[{color}]{sev.value}[/]"
 
+
 def _fmt_file_ctx(file_ctx) -> str:
     if file_ctx is None:
         return "Not available."
@@ -429,16 +424,13 @@ def _fmt_file_ctx(file_ctx) -> str:
     lines = []
 
     if file_ctx.imports:
-        lines.append(
-            "Imports: " + ", ".join(i.module for i in file_ctx.imports[:12])
-        )
+        lines.append("Imports: " + ", ".join(i.module for i in file_ctx.imports[:12]))
 
     if file_ctx.functions:
-        lines.append(
-            "Functions: " + ", ".join(f.name for f in file_ctx.functions[:8])
-        )
+        lines.append("Functions: " + ", ".join(f.name for f in file_ctx.functions[:8]))
 
     return "\\n".join(lines) or "Not available."
+
 
 def _read_lines(file_path: Path, start: int, end: int) -> str:
     try:
@@ -446,6 +438,7 @@ def _read_lines(file_path: Path, start: int, end: int) -> str:
         return "\\n".join(lines[start - 1 : end])
     except OSError:
         return ""
+
 
 def _fallback_judge() -> JudgeResult:
     """When judge LLM itself fails, return a permissive default."""
@@ -461,6 +454,7 @@ def _fallback_judge() -> JudgeResult:
         completeness="COMPLETE",
         reasoning="Judge LLM unavailable — proceeding with HITL review.",
     )
+
 
 def _save_and_exit(
     project_root,
@@ -481,5 +475,5 @@ def _save_and_exit(
             human_approved=human_approved,
             state=state,
         )
-    except Exception:
-        pass
+    except (OSError, TypeError, ValueError):
+        print_warning("Could not save the repair history record.")

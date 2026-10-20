@@ -14,38 +14,39 @@ Commands:
     pisces history           — list all repairs, newest first
     pisces history <id>      — show full detail + diff for one repair
 """
+
 from __future__ import annotations
 
-import json
 import difflib
+import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from rich import box
 from rich.table import Table
 
 from pisces.tui import (
+    _sev_badge,
     console,
     print_diff,
     print_error,
     print_section,
     print_warning,
-    _sev_badge,
 )
 
 _HISTORY_DIR = ".pisces/history"
 
 # State → display colour
 _STATE_COLORS = {
-    "SUCCEEDED":     "bold green",
-    "ROLLED_BACK":   "bold red",
-    "REJECTED":      "red",
-    "FAILED":        "dim red",
-    "HEALING":       "yellow",
-    "APPLIED":       "cyan",
-    "DETECTED":      "dim",
-    "PROPOSED":      "dim",
+    "SUCCEEDED": "bold green",
+    "ROLLED_BACK": "bold red",
+    "REJECTED": "red",
+    "FAILED": "dim red",
+    "HEALING": "yellow",
+    "APPLIED": "cyan",
+    "DETECTED": "dim",
+    "PROPOSED": "dim",
 }
 
 
@@ -53,9 +54,10 @@ _STATE_COLORS = {
 # Entry point
 # ─────────────────────────────────────────────────────────────
 
+
 def run_history(
     project_root: Path,
-    repair_id: Optional[str] = None,
+    repair_id: str | None = None,
     limit: int = 20,
 ) -> int:
     """
@@ -71,9 +73,7 @@ def run_history(
     history_root = project_root / _HISTORY_DIR
 
     if not history_root.exists():
-        console.print(
-            "[muted]No repair history found. Run 'pisces fix <file:line>' first.[/]"
-        )
+        console.print("[muted]No repair history found. Run 'pisces fix <file:line>' first.[/]")
         return 0
 
     records = _load_all_records(history_root)
@@ -94,7 +94,7 @@ def run_history(
     # List view
     _show_list(records, limit=limit)
     console.print(
-        f"  [dim]Tip:[/] [cyan]pisces history <repair_id>[/] "
+        "  [dim]Tip:[/] [cyan]pisces history <repair_id>[/] "
         "[dim]to see diff + full details for any repair.[/]"
     )
     return 0
@@ -103,6 +103,7 @@ def run_history(
 # ─────────────────────────────────────────────────────────────
 # List view
 # ─────────────────────────────────────────────────────────────
+
 
 def _show_list(records: list[dict], limit: int) -> None:
     """Render a table of all repair records."""
@@ -122,19 +123,19 @@ def _show_list(records: list[dict], limit: int) -> None:
         padding=(0, 1),
     )
 
-    table.add_column("Repair ID",  style="code",   width=10,  no_wrap=True)
-    table.add_column("State",      style="bold",   min_width=14)
-    table.add_column("Severity",   style="bold",   width=12)
-    table.add_column("Rule",       style="code",   min_width=25)
-    table.add_column("File",       style="cyan",   min_width=25, max_width=40)
-    table.add_column("When",       style="dim",    min_width=16)
+    table.add_column("Repair ID", style="code", width=10, no_wrap=True)
+    table.add_column("State", style="bold", min_width=14)
+    table.add_column("Severity", style="bold", width=12)
+    table.add_column("Rule", style="code", min_width=25)
+    table.add_column("File", style="cyan", min_width=25, max_width=40)
+    table.add_column("When", style="dim", min_width=16)
 
     for r in sorted_records:
-        state   = r.get("state", "?")
+        state = r.get("state", "?")
         finding = r.get("finding", {})
-        sev     = finding.get("severity", "INFO").upper()
-        ts      = _fmt_time(r.get("created_at", ""))
-        color   = _STATE_COLORS.get(state, "white")
+        sev = finding.get("severity", "INFO").upper()
+        ts = _fmt_time(r.get("created_at", ""))
+        color = _STATE_COLORS.get(state, "white")
 
         table.add_row(
             r.get("repair_id", "?"),
@@ -149,10 +150,10 @@ def _show_list(records: list[dict], limit: int) -> None:
     console.print()
 
     # Summary counts
-    states    = [r.get("state", "?") for r in records]
+    states = [r.get("state", "?") for r in records]
     succeeded = states.count("SUCCEEDED")
-    failed    = states.count("ROLLED_BACK") + states.count("FAILED")
-    rejected  = states.count("REJECTED")
+    failed = states.count("ROLLED_BACK") + states.count("FAILED")
+    rejected = states.count("REJECTED")
 
     console.print(
         f"  [success]✓ {succeeded} succeeded[/]  "
@@ -166,34 +167,38 @@ def _show_list(records: list[dict], limit: int) -> None:
 # Detail view
 # ─────────────────────────────────────────────────────────────
 
+
 def _show_detail(record: dict, history_root: Path) -> None:
     """Render the full detail panel for one repair record."""
     from rich.panel import Panel
     from rich.table import Table
 
     repair_id = record.get("repair_id", "?")
-    state     = record.get("state", "?")
-    finding   = record.get("finding", {})
-    judge     = record.get("judge_result") or {}
-    color     = _STATE_COLORS.get(state, "white")
+    state = record.get("state", "?")
+    finding = record.get("finding", {})
+    judge = record.get("judge_result") or {}
+    color = _STATE_COLORS.get(state, "white")
 
     # ── Metadata grid ─────────────────────────────────────────
     grid = Table.grid(padding=(0, 2))
-    grid.add_column(style="dim",   min_width=18)
+    grid.add_column(style="dim", min_width=18)
     grid.add_column(style="white", min_width=30)
 
-    grid.add_row("Repair ID",      f"[code]{repair_id}[/]")
-    grid.add_row("State",          f"[{color}]{state}[/]")
-    grid.add_row("Rule",           f"[code]{finding.get('rule', '?')}[/]")
-    grid.add_row("Severity",       _sev_badge(finding.get("severity", "INFO")))
-    grid.add_row("File",
-                 f"[cyan]{finding.get('file', '?')}:{finding.get('line', '?')}[/]")
-    grid.add_row("Description",    finding.get("description", ""))
-    grid.add_row("Created",        _fmt_time(record.get("created_at", "")))
-    grid.add_row("Human approved",
-                 "[success]Yes[/]" if record.get("human_approved") is True
-                 else "[high]No[/]" if record.get("human_approved") is False
-                 else "[dim]N/A[/]")
+    grid.add_row("Repair ID", f"[code]{repair_id}[/]")
+    grid.add_row("State", f"[{color}]{state}[/]")
+    grid.add_row("Rule", f"[code]{finding.get('rule', '?')}[/]")
+    grid.add_row("Severity", _sev_badge(finding.get("severity", "INFO")))
+    grid.add_row("File", f"[cyan]{finding.get('file', '?')}:{finding.get('line', '?')}[/]")
+    grid.add_row("Description", finding.get("description", ""))
+    grid.add_row("Created", _fmt_time(record.get("created_at", "")))
+    grid.add_row(
+        "Human approved",
+        "[success]Yes[/]"
+        if record.get("human_approved") is True
+        else "[high]No[/]"
+        if record.get("human_approved") is False
+        else "[dim]N/A[/]",
+    )
 
     console.print(
         Panel(
@@ -208,19 +213,19 @@ def _show_detail(record: dict, history_root: Path) -> None:
     # ── Judge result ──────────────────────────────────────────
     if judge:
         jt = Table.grid(padding=(0, 2))
-        jt.add_column(style="dim",   min_width=20)
+        jt.add_column(style="dim", min_width=20)
         jt.add_column(style="white", min_width=20)
 
-        dec  = judge.get("decision", "?")
+        dec = judge.get("decision", "?")
         dcol = "success" if dec == "APPROVED" else "high"
 
-        jt.add_row("Decision",         f"[{dcol}]{dec}[/]")
-        jt.add_row("Security fixed",   _badge(judge.get("security_ok")))
+        jt.add_row("Decision", f"[{dcol}]{dec}[/]")
+        jt.add_row("Security fixed", _badge(judge.get("security_ok")))
         jt.add_row("Functionality ok", _badge(judge.get("functionality_ok")))
-        jt.add_row("Regression risk",  judge.get("regression_risk", "?"))
-        jt.add_row("Quality",          judge.get("patch_quality", "?"))
-        jt.add_row("Completeness",     judge.get("completeness", "?"))
-        jt.add_row("Reasoning",        f"[dim]{judge.get('reasoning', '')[:200]}[/]")
+        jt.add_row("Regression risk", judge.get("regression_risk", "?"))
+        jt.add_row("Quality", judge.get("patch_quality", "?"))
+        jt.add_row("Completeness", judge.get("completeness", "?"))
+        jt.add_row("Reasoning", f"[dim]{judge.get('reasoning', '')[:200]}[/]")
 
         console.print(
             Panel(
@@ -233,28 +238,28 @@ def _show_detail(record: dict, history_root: Path) -> None:
         console.print()
 
     # ── Diff ──────────────────────────────────────────────────
-    repair_dir   = history_root / repair_id
+    repair_dir = history_root / repair_id
     original_file = repair_dir / "original.py"
-    patch_file    = repair_dir / "patch.py"
+    patch_file = repair_dir / "patch.py"
 
     if original_file.exists() and patch_file.exists():
         original = original_file.read_text(encoding="utf-8")
-        patched  = patch_file.read_text(encoding="utf-8")
+        patched = patch_file.read_text(encoding="utf-8")
         console.print("[bold]Patch Diff:[/]")
 
         diff_text = "".join(
             difflib.unified_diff(
-               original.splitlines(keepends=True),
-               patched.splitlines(keepends=True),
-               fromfile=f"a/{finding.get('file', 'original.py')}",
-               tofile=f"b/{finding.get('file', 'patched.py')}",
-    )
-)
+                original.splitlines(keepends=True),
+                patched.splitlines(keepends=True),
+                fromfile=f"a/{finding.get('file', 'original.py')}",
+                tofile=f"b/{finding.get('file', 'patched.py')}",
+            )
+        )
 
         print_diff(
             diff_text=diff_text or "No differences detected.\n",
             filename=finding.get("file", ""),
-)
+        )
     else:
         console.print("[muted]No patch diff available (files not found).[/]")
         console.print()
@@ -263,6 +268,7 @@ def _show_detail(record: dict, history_root: Path) -> None:
 # ─────────────────────────────────────────────────────────────
 # Record loading
 # ─────────────────────────────────────────────────────────────
+
 
 def _load_all_records(history_root: Path) -> list[dict]:
     """Load all metadata.json files from .pisces/history/*/."""
@@ -280,10 +286,11 @@ def _load_all_records(history_root: Path) -> list[dict]:
 # Formatting helpers
 # ─────────────────────────────────────────────────────────────
 
+
 def _fmt_time(iso: str) -> str:
     """Convert an ISO timestamp to a human-readable relative string."""
     try:
-        dt  = datetime.fromisoformat(iso)
+        dt = datetime.fromisoformat(iso)
         now = datetime.now(timezone.utc)
         diff_s = (now - dt).total_seconds()
 
@@ -296,7 +303,7 @@ def _fmt_time(iso: str) -> str:
         if diff_s < 604800:
             return f"{int(diff_s // 86400)}d ago"
         return dt.strftime("%Y-%m-%d")
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return iso[:16] if len(iso) >= 16 else iso
 
 

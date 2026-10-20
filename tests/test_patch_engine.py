@@ -1,4 +1,5 @@
 """Tests for pisces.patch_engine — extract, validate, apply, rollback."""
+
 from __future__ import annotations
 
 import textwrap
@@ -21,11 +22,10 @@ from pisces.patch_engine import (
 # extract_patch_code
 # ─────────────────────────────────────────────────────────────
 
+
 class TestExtractPatchCode:
     def test_marker_based_extraction(self):
-        llm_output = (
-            f"Here is the fix:\n{PATCH_START}\ndef safe():\n    pass\n{PATCH_END}\nDone."
-        )
+        llm_output = f"Here is the fix:\n{PATCH_START}\ndef safe():\n    pass\n{PATCH_END}\nDone."
         code = extract_patch_code(llm_output)
         assert code is not None
         assert "def safe():" in code
@@ -50,6 +50,7 @@ class TestExtractPatchCode:
 # validate_patch_syntax
 # ─────────────────────────────────────────────────────────────
 
+
 class TestValidatePatchSyntax:
     def test_valid_python_returns_true(self):
         ok, err = validate_patch_syntax("def f():\n    return 42\n")
@@ -70,6 +71,7 @@ class TestValidatePatchSyntax:
 # locate_function_lines
 # ─────────────────────────────────────────────────────────────
 
+
 class TestLocateFunctionLines:
     def _write(self, tmp_path: Path, source: str) -> Path:
         p = tmp_path / "src.py"
@@ -77,40 +79,50 @@ class TestLocateFunctionLines:
         return p
 
     def test_finds_enclosing_function(self, tmp_path):
-        p = self._write(tmp_path, """\
+        p = self._write(
+            tmp_path,
+            """\
             def greet(name):
                 print(name)
                 return name
-        """)
+        """,
+        )
         start, end = locate_function_lines(p, finding_line=2)
         assert start == 1
-        assert end   == 3
+        assert end == 3
 
     def test_no_enclosing_function_returns_finding_line(self, tmp_path):
-        p = self._write(tmp_path, """\
+        p = self._write(
+            tmp_path,
+            """\
             import os
             x = os.system("ls")
-        """)
+        """,
+        )
         start, end = locate_function_lines(p, finding_line=2)
         assert start == 2
-        assert end   == 2
+        assert end == 2
 
     def test_nested_function_prefers_innermost(self, tmp_path):
-        p = self._write(tmp_path, """\
+        p = self._write(
+            tmp_path,
+            """\
             def outer():
                 def inner():
                     return eval(x)
                 return inner()
-        """)
+        """,
+        )
         start, end = locate_function_lines(p, finding_line=3)
         # Should locate inner(), not outer()
         assert start == 2
-        assert end   == 3
+        assert end == 3
 
 
 # ─────────────────────────────────────────────────────────────
 # apply_patch
 # ─────────────────────────────────────────────────────────────
+
 
 class TestApplyPatch:
     def test_replaces_lines_correctly(self, tmp_path):
@@ -120,10 +132,10 @@ class TestApplyPatch:
         apply_patch(src, "REPLACED\n", line_start=2, line_end=3)
 
         content = src.read_text()
-        assert "line1"    in content
+        assert "line1" in content
         assert "REPLACED" in content
-        assert "line4"    in content
-        assert "line2"    not in content  # replaced
+        assert "line4" in content
+        assert "line2" not in content  # replaced
 
     def test_raises_on_invalid_python(self, tmp_path):
         src = tmp_path / "app.py"
@@ -144,6 +156,7 @@ class TestApplyPatch:
 # ─────────────────────────────────────────────────────────────
 # checkpoint + rollback
 # ─────────────────────────────────────────────────────────────
+
 
 class TestCheckpointRollback:
     def test_checkpoint_creates_copy(self, tmp_path):

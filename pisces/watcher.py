@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import threading 
+import threading
 import time
 from pathlib import Path
-from typing import Optional
 
-from watchdog.events import(
+from watchdog.events import (
     FileCreatedEvent,
     FileDeletedEvent,
-    FileModifiedEvent,
     FileMovedEvent,
     FileSystemEvent,
     FileSystemEventHandler,
@@ -16,7 +14,7 @@ from watchdog.events import(
 from watchdog.observers import Observer
 
 from pisces.context_manager import ContextManager
-from pisces.tui import(
+from pisces.tui import (
     console,
     print_section,
     print_step_fail,
@@ -31,31 +29,34 @@ DEBOUNCE_SECONDS: float = 0.8
 
 # the file and directories to never watch
 # Especially .pisces folder to prevent rescans
-_HARD_EXCLUDE_DIRS = frozenset([
-     ".pisces",
-    ".git",
-    ".venv",
-    "venv",
-    "__pycache__",
-    "node_modules",
-    ".mypy_cache",
-    ".ruff_cache",
-    ".pytest_cache",
-    ".tox",
-    "dist",
-    "build",
-])
+_HARD_EXCLUDE_DIRS = frozenset(
+    [
+        ".pisces",
+        ".git",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "node_modules",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+        ".tox",
+        "dist",
+        "build",
+    ]
+)
 
 # Debouncer #
 
-class Debouncer:
-   def __init__(self, callback: "Callable[[Path], None]", delay: float = DEBOUNCE_SECONDS) -> None:  # noqa: F821
-        self._callback = callback
-        self._delay    = delay
-        self._timers:  dict[str, threading.Timer] = {}
-        self._lock     = threading.Lock()  # protects _timers dict
 
-   def event(self, path: Path) -> None:
+class Debouncer:
+    def __init__(self, callback: Callable[[Path], None], delay: float = DEBOUNCE_SECONDS) -> None:  # noqa: F821
+        self._callback = callback
+        self._delay = delay
+        self._timers: dict[str, threading.Timer] = {}
+        self._lock = threading.Lock()  # protects _timers dict
+
+    def event(self, path: Path) -> None:
         """Register a debounced event for *path*."""
         key = str(path)
         with self._lock:
@@ -69,18 +70,20 @@ class Debouncer:
                 self._fire,
                 args=(path, key),
             )
-            timer.daemon = True   # don't block process exit
+            timer.daemon = True  # don't block process exit
             self._timers[key] = timer
             timer.start()
-   def _fire(self, path: Path, key: str) -> None:
+
+    def _fire(self, path: Path, key: str) -> None:
         """Called by threading.Timer when debounce period elapses."""
         with self._lock:
             self._timers.pop(key, None)
         try:
             self._callback(path)
-        except Exception as e:
+        except (OSError, RuntimeError, TypeError, ValueError) as e:
             print_warning(f"Error processing {path.name}: {e}")
-   def cancel_all(self) -> None:
+
+    def cancel_all(self) -> None:
         """Cancel all pending timers (call on shutdown)."""
         with self._lock:
             for timer in self._timers.values():
@@ -90,42 +93,43 @@ class Debouncer:
 
 # Event Handler #
 
+
 class PiscesEventHandler(FileSystemEventHandler):
-    # This is basically watchdog event handler. 
+    # This is basically watchdog event handler.
     # This only filters out the .py files and ignores the excluded directories and routes events through the debouncer.
-   def __init__(
-    self,
-    project_root: Path,
-    context_manager: ContextManager,
-    extra_excludes: Optional[list[str]]=None,
-   ) -> None:
-    super().__init__()
-    self._root = project_root
-    self._cm = context_manager
-    self._excludes = _HARD_EXCLUDE_DIRS | frozenset(extra_excludes or [])
+    def __init__(
+        self,
+        project_root: Path,
+        context_manager: ContextManager,
+        extra_excludes: list[str] | None = None,
+    ) -> None:
+        super().__init__()
+        self._root = project_root
+        self._cm = context_manager
+        self._excludes = _HARD_EXCLUDE_DIRS | frozenset(extra_excludes or [])
 
-    # Debouncer calls self._process when files settles
-    self._debouncer = Debouncer(callback= self._process)
+        # Debouncer calls self._process when files settles
+        self._debouncer = Debouncer(callback=self._process)
 
- # Watchdog entry points
-   def on_modified(self, event: FileSystemEvent) -> None:
-       self._handle(event) 
+    # Watchdog entry points
+    def on_modified(self, event: FileSystemEvent) -> None:
+        self._handle(event)
 
-   def on_created(self, event: FileSystemEvent) -> None:
-       self._handle(event)
+    def on_created(self, event: FileSystemEvent) -> None:
+        self._handle(event)
 
-   def on_deleted(self, event: FileSystemEvent) -> None:
-       self._handle(event)
+    def on_deleted(self, event: FileSystemEvent) -> None:
+        self._handle(event)
 
-   def on_moved(self, event: FileSystemEvent) -> None:
-       if isinstance(event, FileMovedEvent ):
-          src = FileDeletedEvent(event.src_path)
-          dst = FileCreatedEvent(event.dest_path)
-          self._handle(src)
-          self._handle(dst) 
+    def on_moved(self, event: FileSystemEvent) -> None:
+        if isinstance(event, FileMovedEvent):
+            src = FileDeletedEvent(event.src_path)
+            dst = FileCreatedEvent(event.dest_path)
+            self._handle(src)
+            self._handle(dst)
 
     # Internal routing
-   def _handle(self, event: FileSystemEvent) -> None:
+    def _handle(self, event: FileSystemEvent) -> None:
         if event.is_directory:
             return
 
@@ -133,43 +137,44 @@ class PiscesEventHandler(FileSystemEventHandler):
 
         # must be a .py file
         if path.suffix != ".py":
-            return 
-        #Must be reachable from the project root
+            return
+        # Must be reachable from the project root
         try:
             rel = path.relative_to(self._root)
         except ValueError:
-            return 
+            return
 
-        #Check every path components against exlusions
+        # Check every path components against exlusions
         if any(part in self._excludes for part in rel.parts):
             return
 
-        #Route through debouncer no direct action here 
+        # Route through debouncer no direct action here
         self._debouncer.event(path)
 
-   def _process(self, path: Path) -> None:
-       """
+    def _process(self, path: Path) -> None:
+        """
         Called by the Debouncer when a file has settled.
         This runs in a daemon thread — keep it fast and thread-safe.
         """
-       try:
+        try:
             rel = path.relative_to(self._root)
-       except ValueError:
+        except ValueError:
             return
-       rel_str = str(rel)
-       if not path.exists():
+        rel_str = str(rel)
+        if not path.exists():
             # File was deleted
             console.print(f"  [high]✗[/] [dim]Removed from context:[/] [cyan]{rel_str}[/]")
-       else:
+        else:
             print_step_running(f"Change detected: [cyan]{rel_str}[/]")
-       changed = self._cm.update_single_file(path)
-       if changed:
+        changed = self._cm.update_single_file(path)
+        if changed:
             if path.exists():
                 print_step_ok(f"Context updated: [cyan]{rel_str}[/]")
             # File deleted case already printed above
-       else:
+        else:
             console.print(f"  [muted]No change (hash identical): {rel_str}[/]")
-   def shutdown(self) -> None:
+
+    def shutdown(self) -> None:
         """Cancel all pending debounce timers."""
         self._debouncer.cancel_all()
 
@@ -177,7 +182,7 @@ class PiscesEventHandler(FileSystemEventHandler):
 # Entry Point #
 def run_watch(
     project_root: Path,
-    extra_excludes: Optional[list[str]]=None,
+    extra_excludes: list[str] | None = None,
 ) -> None:
     """
     Start watch mode. Blocks until Ctrl+C.
@@ -187,15 +192,16 @@ def run_watch(
     print_section("pisces watch")
 
     # validate project root
-    if not(project_root / "pisces.toml").exists():
+    if not (project_root / "pisces.toml").exists():
         print_step_fail("pisces.toml file not found. Run 'pisces init' first.")
         return
     # Load config to get exclusions
     try:
         from pisces.config_manager import load_config
+
         cfg = load_config(project_root)
         configured_excludes = cfg.scan.exclude
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         configured_excludes = []
     all_excludes = list(_HARD_EXCLUDE_DIRS) + (extra_excludes or []) + configured_excludes
     # Initial full context update before starting the watcher
@@ -210,28 +216,24 @@ def run_watch(
     )
     console.print()
     # Set up event handler and observer
-    handler  = PiscesEventHandler(project_root, cm, extra_excludes=all_excludes)
+    handler = PiscesEventHandler(project_root, cm, extra_excludes=all_excludes)
     observer = Observer()
     observer.schedule(handler, str(project_root), recursive=True)
     # Start
     observer.start()
-    console.print(
-        f"  [bold magenta]👁  Watching[/] [cyan]{project_root}[/]"
-    )
-    console.print(
-        "  [dim]Edit any .py file and save — context updates automatically.[/]"
-    )
-    console.print(
-        "  [dim]Press Ctrl+C to stop.[/]"
-    )
+    console.print(f"  [bold magenta]👁  Watching[/] [cyan]{project_root}[/]")
+    console.print("  [dim]Edit any .py file and save — context updates automatically.[/]")
+    console.print("  [dim]Press Ctrl+C to stop.[/]")
     console.print()
     try:
         _watch_loop(observer)
     finally:
-        handler.shutdown()      # cancel pending debounce timers
+        handler.shutdown()  # cancel pending debounce timers
         observer.stop()
         observer.join(timeout=5)
         console.print("[muted]Observer stopped.[/]")
+
+
 def _watch_loop(observer: Observer) -> None:
     """
     Main watch loop. Blocks until the observer dies or KeyboardInterrupt.
@@ -240,5 +242,3 @@ def _watch_loop(observer: Observer) -> None:
     """
     while observer.is_alive():
         time.sleep(0.25)
-     
- 

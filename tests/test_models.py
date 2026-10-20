@@ -1,7 +1,6 @@
 """Tests for pisces.models — dataclasses, Severity ordering, serialisation."""
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from pisces.models import (
     FileContext,
@@ -18,18 +17,18 @@ from pisces.models import (
 class TestSeverity:
     def test_from_str_valid(self):
         assert Severity.from_str("critical") == Severity.CRITICAL
-        assert Severity.from_str("HIGH")     == Severity.HIGH
-        assert Severity.from_str("medium")   == Severity.MEDIUM
+        assert Severity.from_str("HIGH") == Severity.HIGH
+        assert Severity.from_str("medium") == Severity.MEDIUM
 
     def test_from_str_invalid_falls_back_to_info(self):
         assert Severity.from_str("unknown") == Severity.INFO
-        assert Severity.from_str("")        == Severity.INFO
+        assert Severity.from_str("") == Severity.INFO
 
     def test_ordering_critical_is_highest(self):
         assert Severity.CRITICAL < Severity.HIGH
-        assert Severity.HIGH     < Severity.MEDIUM
-        assert Severity.MEDIUM   < Severity.LOW
-        assert Severity.LOW      < Severity.INFO
+        assert Severity.HIGH < Severity.MEDIUM
+        assert Severity.MEDIUM < Severity.LOW
+        assert Severity.LOW < Severity.INFO
 
     def test_str_equality(self):
         # str(Enum) works because Severity inherits from str
@@ -38,7 +37,7 @@ class TestSeverity:
 
     def test_sort_severities(self):
         unsorted = [Severity.LOW, Severity.CRITICAL, Severity.HIGH, Severity.INFO]
-        assert sorted(unsorted)[0] == Severity.CRITICAL
+        assert min(unsorted) == Severity.CRITICAL
 
 
 class TestFinding:
@@ -79,18 +78,24 @@ class TestFinding:
         d = original.to_dict()
         restored = Finding.from_dict(d)
 
-        assert restored.rule        == original.rule
-        assert restored.severity    == original.severity
-        assert restored.file        == original.file
-        assert restored.line        == original.line
+        assert restored.rule == original.rule
+        assert restored.severity == original.severity
+        assert restored.file == original.file
+        assert restored.line == original.line
         assert restored.description == original.description
 
     def test_severity_preserved_as_enum_after_from_dict(self):
-        f = Finding.from_dict({
-            "id": "x", "rule": "S001", "severity": "HIGH",
-            "file": "f.py", "line": 1, "code": "x",
-            "description": "d",
-        })
+        f = Finding.from_dict(
+            {
+                "id": "x",
+                "rule": "S001",
+                "severity": "HIGH",
+                "file": "f.py",
+                "line": 1,
+                "code": "x",
+                "description": "d",
+            }
+        )
         assert isinstance(f.severity, Severity)
         assert f.severity == Severity.HIGH
 
@@ -98,42 +103,48 @@ class TestFinding:
 class TestFileContext:
     def test_to_from_dict_round_trip(self):
         fc = FileContext(path="src/app.py", hash="abc123")
-        fc.functions = [
-            FunctionInfo(name="main", line_start=1, line_end=10, is_async=False)
-        ]
-        fc.imports = [
-            ImportInfo(module="os", names=["os"], line=1, is_from=False)
-        ]
+        fc.functions = [FunctionInfo(name="main", line_start=1, line_end=10, is_async=False)]
+        fc.imports = [ImportInfo(module="os", names=["os"], line=1, is_from=False)]
 
-        d       = fc.to_dict()
+        d = fc.to_dict()
         restored = FileContext.from_dict(d)
 
-        assert restored.path              == "src/app.py"
-        assert restored.hash              == "abc123"
-        assert len(restored.functions)    == 1
+        assert restored.path == "src/app.py"
+        assert restored.hash == "abc123"
+        assert len(restored.functions) == 1
         assert restored.functions[0].name == "main"
         assert restored.imports[0].module == "os"
 
     def test_parse_error_preserved(self):
         fc = FileContext(path="bad.py", hash="xyz", parse_error="SyntaxError at line 1")
-        d  = fc.to_dict()
+        d = fc.to_dict()
         assert d["parse_error"] == "SyntaxError at line 1"
 
 
 class TestJudgeResult:
     def test_approved_property(self):
         j = JudgeResult(
-            decision="APPROVED", security_ok=True, functionality_ok=True,
-            scope_ok=True, regression_risk="LOW", patch_quality="GOOD",
-            completeness="COMPLETE", reasoning="Looks good.",
+            decision="APPROVED",
+            security_ok=True,
+            functionality_ok=True,
+            scope_ok=True,
+            regression_risk="LOW",
+            patch_quality="GOOD",
+            completeness="COMPLETE",
+            reasoning="Looks good.",
         )
         assert j.approved is True
 
     def test_rejected_property(self):
         j = JudgeResult(
-            decision="REJECTED", security_ok=False, functionality_ok=True,
-            scope_ok=True, regression_risk="HIGH", patch_quality="POOR",
-            completeness="INCOMPLETE", reasoning="Doesn't fix the issue.",
+            decision="REJECTED",
+            security_ok=False,
+            functionality_ok=True,
+            scope_ok=True,
+            regression_risk="HIGH",
+            patch_quality="POOR",
+            completeness="INCOMPLETE",
+            reasoning="Doesn't fix the issue.",
         )
         assert j.approved is False
         assert j.to_dict()["decision"] == "REJECTED"
@@ -142,7 +153,7 @@ class TestJudgeResult:
 class TestRepairRecord:
     def test_defaults(self):
         r = RepairRecord()
-        assert r.state    == RepairState.DETECTED
+        assert r.state == RepairState.DETECTED
         assert r.attempts == 0
         assert len(r.repair_id) == 8  # uuid4()[:8]
 

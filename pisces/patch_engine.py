@@ -14,12 +14,12 @@ Atomicity guarantee:
     3. Rename      — file.py.tmp → file.py  (atomic on most OSes)
     4. Rollback    — if anything fails, copy original.py → file.py
 """
+
 from __future__ import annotations
 
 import ast
 import shutil
 from pathlib import Path
-from typing import Optional
 
 from pisces.tui import print_step_fail, print_step_ok, print_step_running, print_warning
 
@@ -29,14 +29,15 @@ from pisces.tui import print_step_fail, print_step_ok, print_step_running, print
 
 # The fix prompt asks the LLM to wrap patched code in these markers:
 PATCH_START = "<<<PISCES_PATCH_START>>>"
-PATCH_END   = "<<<PISCES_PATCH_END>>>"
+PATCH_END = "<<<PISCES_PATCH_END>>>"
 
 
 # ─────────────────────────────────────────────────────────────
 # Patch extraction from LLM response
 # ─────────────────────────────────────────────────────────────
 
-def extract_patch_code(llm_response: str) -> Optional[str]:
+
+def extract_patch_code(llm_response: str) -> str | None:
     """
     Extract the patched code block from the LLM response.
 
@@ -48,16 +49,17 @@ def extract_patch_code(llm_response: str) -> Optional[str]:
     # Primary: marker-based extraction
     if PATCH_START in llm_response and PATCH_END in llm_response:
         start = llm_response.index(PATCH_START) + len(PATCH_START)
-        end   = llm_response.index(PATCH_END)
-        code  = llm_response[start:end].strip()
+        end = llm_response.index(PATCH_END)
+        code = llm_response[start:end].strip()
         # Strip any accidental ```python fences inside the markers
-        code  = _strip_fences(code)
+        code = _strip_fences(code)
         return code if code else None
 
     # Fallback: first ```python block
     import re
+
     pattern = re.compile(r"```python\s*\n(.*?)```", re.DOTALL)
-    match   = pattern.search(llm_response)
+    match = pattern.search(llm_response)
     if match:
         return match.group(1).strip()
 
@@ -78,6 +80,7 @@ def _strip_fences(code: str) -> str:
 # Patch validation — is the replacement valid Python?
 # ─────────────────────────────────────────────────────────────
 
+
 def validate_patch_syntax(patch_code: str) -> tuple[bool, str]:
     """
     Return (ok, error_message).
@@ -93,6 +96,7 @@ def validate_patch_syntax(patch_code: str) -> tuple[bool, str]:
 # ─────────────────────────────────────────────────────────────
 # Checkpoint — save original file before patching
 # ─────────────────────────────────────────────────────────────
+
 
 def checkpoint_file(
     file_path: Path,
@@ -119,8 +123,8 @@ def save_patch_record(
     repair_id: str,
     finding_dict: dict,
     patch_code: str,
-    judge_result_dict: Optional[dict],
-    human_approved: Optional[bool],
+    judge_result_dict: dict | None,
+    human_approved: bool | None,
     state: str,
 ) -> None:
     """Write metadata.json and patch.py to the repair history directory."""
@@ -135,21 +139,20 @@ def save_patch_record(
 
     # metadata.json
     meta = {
-        "repair_id":     repair_id,
-        "state":         state,
-        "finding":       finding_dict,
-        "judge_result":  judge_result_dict,
+        "repair_id": repair_id,
+        "state": state,
+        "finding": finding_dict,
+        "judge_result": judge_result_dict,
         "human_approved": human_approved,
-        "created_at":    datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    (history_dir / "metadata.json").write_text(
-        json.dumps(meta, indent=2), encoding="utf-8"
-    )
+    (history_dir / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
 
 # ─────────────────────────────────────────────────────────────
 # Patch application — line-range swap
 # ─────────────────────────────────────────────────────────────
+
 
 def locate_function_lines(
     file_path: Path,
@@ -165,18 +168,18 @@ def locate_function_lines(
     """
     try:
         source = file_path.read_text(encoding="utf-8", errors="replace")
-        tree   = ast.parse(source)
+        tree = ast.parse(source)
     except (OSError, SyntaxError):
         return finding_line, finding_line
 
-    best: Optional[tuple[int, int]] = None
+    best: tuple[int, int] | None = None
     best_size = float("inf")
 
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         start = node.lineno
-        end   = node.end_lineno or node.lineno
+        end = node.end_lineno or node.lineno
         if start <= finding_line <= end:
             size = end - start
             if size < best_size:
@@ -211,21 +214,21 @@ def apply_patch(
         original_block_indent = first_original[: len(first_original) - len(first_original.lstrip())]
 
     # Re-indent the patch_code to match the original indentation
-    patch_lines    = patch_code.splitlines(keepends=True)
-    first_patch    = patch_lines[0] if patch_lines else ""
-    patch_indent   = first_patch[: len(first_patch) - len(first_patch.lstrip())]
+    patch_lines = patch_code.splitlines(keepends=True)
+    first_patch = patch_lines[0] if patch_lines else ""
+    patch_indent = first_patch[: len(first_patch) - len(first_patch.lstrip())]
 
     if patch_indent != original_block_indent:
         # Adjust: strip patch's own leading indent, add original's
         adjusted = []
         for pl in patch_lines:
-            stripped = pl[len(patch_indent):] if pl.startswith(patch_indent) else pl
+            stripped = pl.removeprefix(patch_indent)
             adjusted.append(original_block_indent + stripped)
         patch_lines = adjusted
 
     # Assemble new file content
-    before  = original_lines[: line_start - 1]
-    after   = original_lines[line_end:]
+    before = original_lines[: line_start - 1]
+    after = original_lines[line_end:]
     new_content = "".join(before + patch_lines + after)
 
     # Validate the new file as a whole
@@ -242,13 +245,15 @@ def apply_patch(
         tmp_path.unlink(missing_ok=True)
         raise
 
-    print_step_ok(f"Patch applied to [cyan]{file_path.name}[/] "
-                  f"(replaced lines {line_start}–{line_end})")
+    print_step_ok(
+        f"Patch applied to [cyan]{file_path.name}[/] (replaced lines {line_start}–{line_end})"
+    )
 
 
 # ─────────────────────────────────────────────────────────────
 # Rollback
 # ─────────────────────────────────────────────────────────────
+
 
 def rollback(file_path: Path, checkpoint: Path) -> None:
     """Restore *file_path* from the checkpoint copy."""

@@ -12,18 +12,18 @@ What it does (in order):
     6. Call the configured LLM provider
     7. Parse and render the explanation as a rich, formatted panel
 """
+
 from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional
 
 from rich import box
+from rich.console import Group
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
-from rich.console import Group
 from rich.text import Text
 
 from pisces.config_manager import load_config
@@ -48,6 +48,7 @@ _CONTEXT_LINES = 20
 # Entry point
 # ─────────────────────────────────────────────────────────────
 
+
 def run_explain(
     ref: str,
     project_root: Path,
@@ -64,13 +65,12 @@ def run_explain(
     file_path, line_no = _parse_ref(ref, project_root)
     if file_path is None:
         print_error(
-            f"Invalid reference: '{ref}'\n"
-            "  Expected format: pisces explain path/to/file.py:42"
+            f"Invalid reference: '{ref}'\n  Expected format: pisces explain path/to/file.py:42"
         )
         return 1
 
     rel_path = str(file_path.relative_to(project_root))
-    lookup   = f"{rel_path}:{line_no}"
+    lookup = f"{rel_path}:{line_no}"
 
     # ── Load finding from cache ───────────────────────────────
     finding = load_finding_by_ref(project_root, lookup)
@@ -98,11 +98,9 @@ def run_explain(
         return 1
 
     provider = cfg.llm.provider
-    model    = cfg.llm.model
+    model = cfg.llm.model
 
-    console.print(
-        f"  [dim]Using[/] [magenta]{provider}[/] / [cyan]{model}[/]"
-    )
+    console.print(f"  [dim]Using[/] [magenta]{provider}[/] / [cyan]{model}[/]")
     console.print()
 
     # ── Build and send LLM request ────────────────────────────
@@ -111,14 +109,13 @@ def run_explain(
     try:
         with spinner(f"Asking {provider} to analyse the vulnerability..."):
             response = call_llm(request, provider=provider, model=model)
-    except EnvironmentError as e:
+    except OSError as e:
         print_error(str(e), hint=f"Set the API key env var for '{provider}'.")
         return 1
     except RuntimeError as e:
         print_error(str(e))
         return 1
 
-   
     # ── Parse LLM response ────────────────────────────────────
     try:
         explanation = _parse_llm_response(response.content)
@@ -160,7 +157,6 @@ def run_explain(
     return 0
 
 
-
 def _display_explanation(
     finding: Finding,
     explanation: dict[str, str],
@@ -181,9 +177,7 @@ def _display_explanation(
         "INFO": ("bold cyan", "cyan"),
     }
 
-    severity_style, border_style = severity_styles.get(
-        severity, ("bold white", "cyan")
-    )
+    severity_style, border_style = severity_styles.get(severity, ("bold white", "cyan"))
 
     console.print()
 
@@ -287,9 +281,9 @@ def _display_explanation(
         )
 
         if code_match:
-            before_code = fix_text[:code_match.start()].strip()
+            before_code = fix_text[: code_match.start()].strip()
             code = code_match.group(1).strip()
-            after_code = fix_text[code_match.end():].strip()
+            after_code = fix_text[code_match.end() :].strip()
 
             fix_content = []
 
@@ -347,12 +341,12 @@ def _display_explanation(
     console.print()
 
 
-
 # ─────────────────────────────────────────────────────────────
 # Reference parsing
 # ─────────────────────────────────────────────────────────────
 
-def _parse_ref(ref: str, project_root: Path) -> tuple[Optional[Path], int]:
+
+def _parse_ref(ref: str, project_root: Path) -> tuple[Path | None, int]:
     """
     Parse a 'file.py:42' reference into (Path, line_number).
 
@@ -366,7 +360,7 @@ def _parse_ref(ref: str, project_root: Path) -> tuple[Optional[Path], int]:
         return None, 0
 
     file_str = match.group(1)
-    line_no  = int(match.group(2))
+    line_no = int(match.group(2))
 
     # Try as-is, then relative to project_root
     candidates = [
@@ -384,6 +378,7 @@ def _parse_ref(ref: str, project_root: Path) -> tuple[Optional[Path], int]:
 # Source snippet extraction
 # ─────────────────────────────────────────────────────────────
 
+
 def _get_source_snippet(
     file_path: Path,
     line_no: int,
@@ -399,7 +394,7 @@ def _get_source_snippet(
         return ""
 
     start = max(1, line_no - context)
-    end   = min(len(lines), line_no + context)
+    end = min(len(lines), line_no + context)
 
     result_lines = []
     for i in range(start, end + 1):
@@ -413,13 +408,14 @@ def _get_source_snippet(
 # File context loading
 # ─────────────────────────────────────────────────────────────
 
-def _get_file_context(project_root: Path, rel_path: str) -> Optional[FileContext]:
+
+def _get_file_context(project_root: Path, rel_path: str) -> FileContext | None:
     """Load the FileContext from .pisces/context.json, if available."""
     try:
         cm = ContextManager(project_root)
         cm.load()
         return cm.get_file_context(rel_path)
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError, KeyError):
         return None
 
 
@@ -470,7 +466,7 @@ The fix must:
 def _build_explain_request(
     finding: Finding,
     source_snippet: str,
-    file_ctx: Optional[FileContext],
+    file_ctx: FileContext | None,
     rel_path: str,
 ) -> LLMRequest:
     """Construct the LLMRequest for the explain command."""
@@ -497,7 +493,6 @@ def _build_explain_request(
         else "Context not available (context.json not found or file not indexed)."
     )
 
-    
     user_prompt = f"""\
 ## Security Finding
 
@@ -558,18 +553,12 @@ def _parse_llm_response(content: str) -> dict[str, str]:
     for index, match in enumerate(matches):
         heading = match.group(1).strip()
         start = match.end()
-        end = (
-            matches[index + 1].start()
-            if index + 1 < len(matches)
-            else len(content)
-        )
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
 
         sections[heading] = content[start:end].strip()
 
     if not sections:
-        raise ValueError(
-            "The LLM response contains no Markdown section headings."
-        )
+        raise ValueError("The LLM response contains no Markdown section headings.")
 
     return sections
 
@@ -577,6 +566,7 @@ def _parse_llm_response(content: str) -> dict[str, str]:
 # ─────────────────────────────────────────────────────────────
 # Response display
 # ─────────────────────────────────────────────────────────────
+
 
 def _display_explanation(
     finding: Finding,
@@ -586,7 +576,6 @@ def _display_explanation(
     line_no: int,
     source_snippet: str,
 ) -> None:
-    
 
     console.print()
     finding_data = {
@@ -596,8 +585,7 @@ def _display_explanation(
         "severity": str(finding.severity.value).upper(),
         "description": finding.description,
         "impact": finding.impact or "Not specified",
-        "remediation": getattr(finding, "remediation", None)
-        or "See the recommended fix below.",
+        "remediation": getattr(finding, "remediation", None) or "See the recommended fix below.",
     }
 
     print_finding_detail(finding_data, source_snippet=source_snippet)
@@ -618,4 +606,3 @@ def _display_explanation(
                 padding=(1, 2),
             )
         )
-

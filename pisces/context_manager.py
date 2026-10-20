@@ -10,6 +10,7 @@ Core principle:
         unchanged → reuse existing context entry  ← fast path
         changed   → re-parse AST → replace entry ← slow path (only when needed)
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -17,7 +18,6 @@ import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 from pisces.ast_visitor import extract_file_context
 from pisces.models import FileContext
@@ -34,29 +34,32 @@ from pisces.tui import (
 # ─────────────────────────────────────────────────────────────
 
 CONTEXT_SCHEMA_VERSION = "1"
-CONTEXT_FILENAME       = "context.json"
+CONTEXT_FILENAME = "context.json"
 
 # Default directories / patterns to always ignore
-_DEFAULT_EXCLUDES = frozenset([
-    ".git",
-    ".venv",
-    "venv",
-    "__pycache__",
-    "node_modules",
-    ".pisces",
-    "dist",
-    "build",
-    ".mypy_cache",
-    ".ruff_cache",
-    ".pytest_cache",
-    ".tox",
-    ".eggs",
-])
+_DEFAULT_EXCLUDES = frozenset(
+    [
+        ".git",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "node_modules",
+        ".pisces",
+        "dist",
+        "build",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+        ".tox",
+        ".eggs",
+    ]
+)
 
 
 # ─────────────────────────────────────────────────────────────
 # File hashing
 # ─────────────────────────────────────────────────────────────
+
 
 def hash_file(path: Path) -> str:
     """Return the SHA-256 hex digest of *path*."""
@@ -71,9 +74,10 @@ def hash_file(path: Path) -> str:
 # Python file discovery
 # ─────────────────────────────────────────────────────────────
 
+
 def discover_python_files(
     root: Path,
-    extra_excludes: Optional[list[str]] = None,
+    extra_excludes: list[str] | None = None,
 ) -> list[Path]:
     """
     Recursively find all .py files under *root*, respecting exclusion rules.
@@ -104,6 +108,7 @@ def discover_python_files(
 # Context JSON I/O
 # ─────────────────────────────────────────────────────────────
 
+
 def _context_path(project_root: Path) -> Path:
     return project_root / ".pisces" / CONTEXT_FILENAME
 
@@ -125,8 +130,8 @@ def _empty_context(project_root: Path) -> dict:
     return {
         "schema_version": CONTEXT_SCHEMA_VERSION,
         "project": {
-            "root":           str(project_root),
-            "last_updated":   datetime.now(timezone.utc).isoformat(),
+            "root": str(project_root),
+            "last_updated": datetime.now(timezone.utc).isoformat(),
         },
         "files": {},
     }
@@ -153,6 +158,7 @@ def save_context(project_root: Path, raw: dict) -> None:
 # Context Manager
 # ─────────────────────────────────────────────────────────────
 
+
 class ContextManager:
     """
     High-level interface for managing project context.
@@ -166,11 +172,11 @@ class ContextManager:
     def __init__(
         self,
         project_root: Path,
-        extra_excludes: Optional[list[str]] = None,
+        extra_excludes: list[str] | None = None,
     ) -> None:
-        self.project_root    = project_root
-        self.extra_excludes  = extra_excludes or []
-        self._raw: dict      = {}    # in-memory copy of context.json
+        self.project_root = project_root
+        self.extra_excludes = extra_excludes or []
+        self._raw: dict = {}  # in-memory copy of context.json
 
     # ── Public API ────────────────────────────────────────
 
@@ -191,21 +197,17 @@ class ContextManager:
         self.load()
 
         t0 = time.monotonic()
-        py_files = discover_python_files(
-            self.project_root, extra_excludes=self.extra_excludes
-        )
+        py_files = discover_python_files(self.project_root, extra_excludes=self.extra_excludes)
 
         stats = {
             "discovered": len(py_files),
-            "updated":    0,
-            "skipped":    0,
-            "errors":     0,
+            "updated": 0,
+            "skipped": 0,
+            "errors": 0,
         }
 
         if verbose:
-            console.print(
-                f"  [dim]Discovered[/] [cyan]{len(py_files)}[/] [dim]Python file(s)[/]"
-            )
+            console.print(f"  [dim]Discovered[/] [cyan]{len(py_files)}[/] [dim]Python file(s)[/]")
 
         existing_files: dict = self._raw.setdefault("files", {})
 
@@ -224,7 +226,7 @@ class ContextManager:
             stored = existing_files.get(rel, {})
             if stored.get("hash") == file_hash:
                 stats["skipped"] += 1
-                continue   # ← fast path: file unchanged
+                continue  # ← fast path: file unchanged
 
             # ─ File changed or new → re-parse AST ────────
             if verbose:
@@ -255,9 +257,7 @@ class ContextManager:
                 print_step_ok(f"{rel}")
 
         # Remove entries for files that no longer exist
-        live_rels = {
-            str(f.relative_to(self.project_root)) for f in py_files
-        }
+        live_rels = {str(f.relative_to(self.project_root)) for f in py_files}
         stale = [k for k in existing_files if k not in live_rels]
         for k in stale:
             del existing_files[k]
@@ -295,7 +295,7 @@ class ContextManager:
 
         stored = self._raw.get("files", {}).get(rel, {})
         if stored.get("hash") == file_hash:
-            return False   # unchanged
+            return False  # unchanged
 
         try:
             source = file_path.read_text(encoding="utf-8", errors="replace")
@@ -313,7 +313,7 @@ class ContextManager:
         self.save()
         return True
 
-    def get_file_context(self, rel_path: str) -> Optional[FileContext]:
+    def get_file_context(self, rel_path: str) -> FileContext | None:
         """Return a FileContext for a relative path, or None if not found."""
         data = self._raw.get("files", {}).get(rel_path)
         if data is None:

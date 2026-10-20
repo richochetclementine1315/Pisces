@@ -2,13 +2,14 @@
 # pisces.toml should not and never contain sensitive config(eg: API key or maybe cerdentials)
 # it may contain things like say provider name, model, settings or models
 """
+
 from __future__ import annotations
 
 import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -16,84 +17,95 @@ else:
     try:
         import tomli as tomllib
     except ImportError as e:
-        raise ImportError(
-            "Install 'tomli' for Python < 3.11: pip install tomli"
-        ) from e
+        raise ImportError("Install 'tomli' for Python < 3.11: pip install tomli") from e
 
     """Environment Variable names for each of the provider"""
-_PROVIDER_ENV_VARS: dict[str, list[str]]={
+_PROVIDER_ENV_VARS: dict[str, list[str]] = {
     "openai": ["OPENAI_API_KEY"],
     "anthropic": ["ANTHROPIC_API_KEY"],
     "gemini": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
     "groq": ["GROQ_API_KEY"],
-    "ollama": [],     #key not needed cos local
-    "lmstudio": [],   #key not needed cos local
-}    
+    "ollama": [],  # key not needed cos local
+    "lmstudio": [],  # key not needed cos local
+}
 
 # Supported provider and their default models
-PROVIDER_DEFAULTS: dict[str, str]={
+PROVIDER_DEFAULTS: dict[str, str] = {
     "openai": "gpt-4o-mini",
     "anthropic": "claude-3-5-haiku-20241022",
-    "gemini":    "gemini-2.0-flash",
-    "groq":      "llama-3.3-70b-versatile",
-    "ollama":    "llama3.2",
-    "lmstudio":  "local-model",
+    "gemini": "gemini-2.0-flash",
+    "groq": "llama-3.3-70b-versatile",
+    "ollama": "llama3.2",
+    "lmstudio": "local-model",
 }
 
 SUPPORTED_PROVIDERS = list(PROVIDER_DEFAULTS.keys())
 
 """Config Dataclasses"""
-@dataclass 
+
+
+@dataclass
 class LLMConfig:
     provider: str = "groq"
-    model: str = "llama-3.3-70b-versatile"  
+    model: str = "llama-3.3-70b-versatile"
+
 
 @dataclass
 class RepairConfig:
     max_attempts: int = 3
-    require_approval: bool = True #HITL always onn by default
+    require_approval: bool = True  # HITL always onn by default
+
 
 @dataclass
 class ValidationConfig:
-    test_command: str = "pytest"         
+    test_command: str = "pytest"
+
 
 @dataclass
 class ScanConfig:
-    exclude: list[str] = field(default_factory=lambda: [
-        ".git", ".venv", "venv", "__pycache__",
-        "node_modules", ".pisces", "dist", "build",
-    ])    
+    exclude: list[str] = field(
+        default_factory=lambda: [
+            ".git",
+            ".venv",
+            "venv",
+            "__pycache__",
+            "node_modules",
+            ".pisces",
+            "dist",
+            "build",
+        ]
+    )
+
 
 @dataclass
 class PiscesConfig:
-    llm: LLMConfig = field(default_factory=LLMConfig)  
+    llm: LLMConfig = field(default_factory=LLMConfig)
     repair: RepairConfig = field(default_factory=RepairConfig)
-    validation: ValidationConfig = field(default_factory=ValidationConfig)  
+    validation: ValidationConfig = field(default_factory=ValidationConfig)
     scan: ScanConfig = field(default_factory=ScanConfig)
 
-    _project_root: Optional[Path] = field(default=None, repr=False, compare=False)
+    _project_root: Path | None = field(default=None, repr=False, compare=False)
 
     """Loader"""
+
+
 def load_config(project_root: Path) -> PiscesConfig:
     """
     Load configuration from *project_root*/pisces.toml.
     Falls back to defaults for any missing keys.
     Raises RuntimeError if pisces has not been initialized.
     """
-    toml_path= project_root / "pisces.toml"
+    toml_path = project_root / "pisces.toml"
 
     if not toml_path.exists():
-        raise RuntimeError(
-            f"pisces.toml not found in {project_root}\n"
-            "Run 'pisces init' first."
-        )
+        raise RuntimeError(f"pisces.toml not found in {project_root}\nRun 'pisces init' first.")
     with toml_path.open("rb") as f:
-        raw: dict[str, Any]= tomllib.load(f)
+        raw: dict[str, Any] = tomllib.load(f)
 
-    cfg= PiscesConfig()   
-    cfg._project_root= project_root
+    cfg = PiscesConfig()
+    cfg._project_root = project_root
 
-        # [llm]
+    # [llm]
     llm = raw.get("llm", {})
     if "provider" in llm:
         cfg.llm.provider = llm["provider"].lower().strip()
@@ -115,6 +127,8 @@ def load_config(project_root: Path) -> PiscesConfig:
         cfg.scan.exclude = [str(e) for e in scan["exclude"]]
     _validate_config(cfg)
     return cfg
+
+
 def _validate_config(cfg: PiscesConfig) -> None:
     """Raise ValueError for clearly invalid config values."""
     if cfg.llm.provider not in SUPPORTED_PROVIDERS:
@@ -124,10 +138,12 @@ def _validate_config(cfg: PiscesConfig) -> None:
         )
     if cfg.repair.max_attempts < 1:
         raise ValueError("repair.max_attempts must be >= 1")
+
+
 # ─────────────────────────────────────────────────────────────
 # Credential lookup — env vars ONLY
 # ─────────────────────────────────────────────────────────────
-def get_api_key(provider: str) -> Optional[str]:
+def get_api_key(provider: str) -> str | None:
     """
     Return the API key for *provider* from environment variables.
     Returns None for local providers (ollama, lmstudio) that need no key.
@@ -136,12 +152,12 @@ def get_api_key(provider: str) -> Optional[str]:
     provider = provider.lower()
     env_vars = _PROVIDER_ENV_VARS.get(provider, [])
     if not env_vars:
-        return None   # local provider — no key needed
+        return None  # local provider — no key needed
     for var in env_vars:
         value = os.environ.get(var, "").strip()
         if value:
             return value
-    raise EnvironmentError(
+    raise OSError(
         f"No API key found for provider '{provider}'.\n"
         f"Set one of these environment variables: {', '.join(env_vars)}\n\n"
         f"Example (Linux/macOS/WSL):\n"
@@ -151,13 +167,17 @@ def get_api_key(provider: str) -> Optional[str]:
         f"Example (Windows PowerShell):\n"
         f"  $env:{env_vars[0]}='your_key_here'"
     )
+
+
 def check_api_key_available(provider: str) -> bool:
     """Return True if an API key is available (or not required)."""
     try:
         get_api_key(provider)
         return True
-    except EnvironmentError:
+    except OSError:
         return False
+
+
 # ─────────────────────────────────────────────────────────────
 # Config writer (non-sensitive fields only)
 # ─────────────────────────────────────────────────────────────
@@ -185,4 +205,4 @@ exclude = [
     {excludes}
 ]
 """
-    toml_path.write_text(content, encoding="utf-8") 
+    toml_path.write_text(content, encoding="utf-8")

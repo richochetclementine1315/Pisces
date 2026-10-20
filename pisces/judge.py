@@ -10,10 +10,10 @@ The judge acts as an adversarial reviewer:
 Returns a structured JudgeResult the repair loop uses to decide
 whether to accept the patch, reject it, or ask for another attempt.
 """
+
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 from pisces.llm_client import call_llm
 from pisces.models import Finding, JudgeResult, LLMRequest
@@ -52,7 +52,7 @@ def judge_patch(
     patched_code: str,
     provider: str,
     model: str,
-    prior_failure: Optional[str] = None,
+    prior_failure: str | None = None,
 ) -> JudgeResult:
     """
     Ask the LLM to judge whether *patched_code* correctly fixes *finding*.
@@ -90,7 +90,7 @@ Judge this patch. Is it correct, complete, and safe to apply? """
     request = LLMRequest(
         system_prompt=_JUDGE_SYSTEM,
         user_prompt=user_prompt,
-        temperature=0.1,    # very low — we want consistent, strict judgment
+        temperature=0.1,  # very low — we want consistent, strict judgment
         max_tokens=512,
     )
     response = call_llm(request, provider=provider, model=model)

@@ -19,14 +19,14 @@ Design rules:
     - Every finding carries: id, rule, severity, file, line, code,
       description, impact, remediation.
 """
+
 from __future__ import annotations
 
 import ast
 import re
 from pathlib import Path
-from typing import Optional
 
-from pisces.models import FileContext, Finding, Severity
+from pisces.models import Finding, Severity
 
 # ─────────────────────────────────────────────────────────────
 # Rule metadata registry
@@ -34,18 +34,18 @@ from pisces.models import FileContext, Finding, Severity
 
 RULE_META: dict[str, dict] = {
     "S001_HARDCODED_SECRET": {
-        "severity":    Severity.HIGH,
+        "severity": Severity.HIGH,
         "description": "Hardcoded secret or credential in source code",
-        "impact":      "Credentials exposed in version control or logs",
+        "impact": "Credentials exposed in version control or logs",
         "remediation": (
             "Move secrets to environment variables. "
             "Use os.environ.get('MY_SECRET') or a secrets manager."
         ),
     },
     "S002_COMMAND_INJECTION": {
-        "severity":    Severity.CRITICAL,
+        "severity": Severity.CRITICAL,
         "description": "Potential command injection via shell=True with dynamic input",
-        "impact":      "Attacker-controlled input may execute arbitrary OS commands",
+        "impact": "Attacker-controlled input may execute arbitrary OS commands",
         "remediation": (
             "Use shell=False (default) and pass arguments as a list: "
             "subprocess.run(['cmd', arg], shell=False). "
@@ -53,18 +53,18 @@ RULE_META: dict[str, dict] = {
         ),
     },
     "S003_UNSAFE_SUBPROCESS": {
-        "severity":    Severity.HIGH,
+        "severity": Severity.HIGH,
         "description": "subprocess call with shell=True",
-        "impact":      "shell=True expands shell metacharacters — use only with trusted, static strings",
+        "impact": "shell=True expands shell metacharacters — use only with trusted, static strings",
         "remediation": (
             "Replace shell=True with a list of arguments: "
             "subprocess.run(['cmd', '--flag', value], shell=False)"
         ),
     },
     "S004_UNSAFE_DESERIALIZATION": {
-        "severity":    Severity.HIGH,
+        "severity": Severity.HIGH,
         "description": "Unsafe deserialization of untrusted data",
-        "impact":      "Maliciously crafted data can execute arbitrary code during unpickling",
+        "impact": "Maliciously crafted data can execute arbitrary code during unpickling",
         "remediation": (
             "Never unpickle data from untrusted sources. "
             "Use JSON/msgpack for serialisation. "
@@ -72,18 +72,18 @@ RULE_META: dict[str, dict] = {
         ),
     },
     "S005_TLS_VERIFY_DISABLED": {
-        "severity":    Severity.MEDIUM,
+        "severity": Severity.MEDIUM,
         "description": "TLS certificate verification disabled (verify=False)",
-        "impact":      "Disabling TLS verification allows man-in-the-middle attacks",
+        "impact": "Disabling TLS verification allows man-in-the-middle attacks",
         "remediation": (
             "Remove verify=False. If using a self-signed cert, "
             "pass verify='/path/to/ca-bundle.crt' instead."
         ),
     },
     "S006_CODE_INJECTION": {
-        "severity":    Severity.CRITICAL,
+        "severity": Severity.CRITICAL,
         "description": "eval() or exec() called with non-literal (potentially dynamic) argument",
-        "impact":      "Dynamic code execution — arbitrary Python can be injected and executed",
+        "impact": "Dynamic code execution — arbitrary Python can be injected and executed",
         "remediation": (
             "Avoid eval()/exec() entirely. "
             "Use ast.literal_eval() for safe constant parsing, "
@@ -91,9 +91,9 @@ RULE_META: dict[str, dict] = {
         ),
     },
     "S007_DANGEROUS_FILESYSTEM": {
-        "severity":    Severity.MEDIUM,
+        "severity": Severity.MEDIUM,
         "description": "Potentially dangerous filesystem operation with variable path",
-        "impact":      "Path traversal or unintended deletion of files/directories",
+        "impact": "Path traversal or unintended deletion of files/directories",
         "remediation": (
             "Validate and sanitise paths before use. "
             "Use pathlib.Path.resolve() and check the result is within expected root. "
@@ -107,12 +107,13 @@ RULE_META: dict[str, dict] = {
 # Helper utilities
 # ─────────────────────────────────────────────────────────────
 
+
 def _make_finding(
     rule_id: str,
     file: str,
     line: int,
     code: str,
-    override_severity: Optional[Severity] = None,
+    override_severity: Severity | None = None,
 ) -> Finding:
     meta = RULE_META[rule_id]
     return Finding(
@@ -163,9 +164,20 @@ _SECRET_REGEX = re.compile(
 
 # High-entropy string heuristic (skip very short or obviously placeholder values)
 _PLACEHOLDER_VALUES = {
-    "changeme", "password", "secret", "example", "test",
-    "your_key_here", "xxx", "yyy", "zzz", "<your-key>", "",
-    "placeholder", "todo", "fill-me-in",
+    "changeme",
+    "password",
+    "secret",
+    "example",
+    "test",
+    "your_key_here",
+    "xxx",
+    "yyy",
+    "zzz",
+    "<your-key>",
+    "",
+    "placeholder",
+    "todo",
+    "fill-me-in",
 }
 
 
@@ -174,10 +186,8 @@ def _looks_like_real_secret(value: str) -> bool:
     v = value.strip()
     if len(v) < 4:
         return False
-    if v.lower() in _PLACEHOLDER_VALUES:
-        return False
-    # Real secrets tend to have mixed chars or be long
-    return True
+    # Real secrets tend to have mixed chars or be long.
+    return v.lower() not in _PLACEHOLDER_VALUES
 
 
 def check_hardcoded_secrets_ast(
@@ -198,28 +208,32 @@ def check_hardcoded_secrets_ast(
             if not isinstance(target, ast.Name):
                 continue
             if _SECRET_VAR_NAMES.search(target.id):
-                findings.append(_make_finding(
-                    "S001_HARDCODED_SECRET",
-                    rel_path,
-                    node.lineno,
-                    _source_line(source_lines, node.lineno),
-                ))
+                findings.append(
+                    _make_finding(
+                        "S001_HARDCODED_SECRET",
+                        rel_path,
+                        node.lineno,
+                        _source_line(source_lines, node.lineno),
+                    )
+                )
     return findings
 
 
 def check_hardcoded_secrets_regex(source: str, rel_path: str) -> list[Finding]:
     findings: list[Finding] = []
     for m in _SECRET_REGEX.finditer(source):
-        var   = m.group("var")
+        var = m.group("var")
         value = m.group("val")
-        line  = source[: m.start()].count("\n") + 1
+        line = source[: m.start()].count("\n") + 1
         if _SECRET_VAR_NAMES.search(var) and _looks_like_real_secret(value):
-            findings.append(_make_finding(
-                "S001_HARDCODED_SECRET",
-                rel_path,
-                line,
-                m.group(0).strip()[:200],
-            ))
+            findings.append(
+                _make_finding(
+                    "S001_HARDCODED_SECRET",
+                    rel_path,
+                    line,
+                    m.group(0).strip()[:200],
+                )
+            )
     return findings
 
 
@@ -228,8 +242,11 @@ def check_hardcoded_secrets_regex(source: str, rel_path: str) -> list[Finding]:
 # ─────────────────────────────────────────────────────────────
 
 _SUBPROCESS_FUNCS = {
-    "subprocess.run", "subprocess.call", "subprocess.Popen",
-    "subprocess.check_output", "subprocess.check_call",
+    "subprocess.run",
+    "subprocess.call",
+    "subprocess.Popen",
+    "subprocess.check_output",
+    "subprocess.check_call",
 }
 
 
@@ -253,18 +270,14 @@ def _first_arg_is_dynamic(call_node: ast.Call) -> bool:
     # f-string, BinOp (string concat), Name (variable), etc.
     if isinstance(arg0, ast.JoinedStr):  # f"..."
         return True
-    if isinstance(arg0, ast.BinOp):     # "cmd " + var
+    if isinstance(arg0, ast.BinOp):  # "cmd " + var
         return True
-    if isinstance(arg0, ast.Name):      # variable
+    if isinstance(arg0, ast.Name):  # variable
         return True
-    if isinstance(arg0, ast.Call):      # format()/join()
-        return True
-    return False
+    return isinstance(arg0, ast.Call)  # format()/join()
 
 
-def check_subprocess_ast(
-    tree: ast.AST, source_lines: list[str], rel_path: str
-) -> list[Finding]:
+def check_subprocess_ast(tree: ast.AST, source_lines: list[str], rel_path: str) -> list[Finding]:
     findings: list[Finding] = []
 
     for node in ast.walk(tree):
@@ -286,13 +299,13 @@ def check_subprocess_ast(
                 code = _source_line(source_lines, node.lineno)
                 # os.system is always shell=True effectively
                 if node.args and _is_dynamic(node.args[0]):
-                    findings.append(_make_finding(
-                        "S002_COMMAND_INJECTION", rel_path, node.lineno, code
-                    ))
+                    findings.append(
+                        _make_finding("S002_COMMAND_INJECTION", rel_path, node.lineno, code)
+                    )
                 else:
-                    findings.append(_make_finding(
-                        "S003_UNSAFE_SUBPROCESS", rel_path, node.lineno, code
-                    ))
+                    findings.append(
+                        _make_finding("S003_UNSAFE_SUBPROCESS", rel_path, node.lineno, code)
+                    )
             continue
 
         if not _has_shell_true(node):
@@ -302,20 +315,16 @@ def check_subprocess_ast(
 
         if _first_arg_is_dynamic(node):
             # shell=True + dynamic first arg = command injection risk
-            findings.append(_make_finding(
-                "S002_COMMAND_INJECTION", rel_path, node.lineno, code
-            ))
+            findings.append(_make_finding("S002_COMMAND_INJECTION", rel_path, node.lineno, code))
         else:
             # shell=True with static string — still bad practice
-            findings.append(_make_finding(
-                "S003_UNSAFE_SUBPROCESS", rel_path, node.lineno, code
-            ))
+            findings.append(_make_finding("S003_UNSAFE_SUBPROCESS", rel_path, node.lineno, code))
 
     return findings
 
 
 _SUBPROCESS_REGEX = re.compile(r"shell\s*=\s*True", re.IGNORECASE)
-_OS_SYSTEM_REGEX  = re.compile(r"os\.(system|popen)\s*\(")
+_OS_SYSTEM_REGEX = re.compile(r"os\.(system|popen)\s*\(")
 
 
 def check_subprocess_regex(source: str, rel_path: str) -> list[Finding]:
@@ -326,13 +335,9 @@ def check_subprocess_regex(source: str, rel_path: str) -> list[Finding]:
         if stripped.startswith("#"):
             continue
         if _SUBPROCESS_REGEX.search(line):
-            findings.append(_make_finding(
-                "S003_UNSAFE_SUBPROCESS", rel_path, i, stripped
-            ))
+            findings.append(_make_finding("S003_UNSAFE_SUBPROCESS", rel_path, i, stripped))
         elif _OS_SYSTEM_REGEX.search(line):
-            findings.append(_make_finding(
-                "S002_COMMAND_INJECTION", rel_path, i, stripped
-            ))
+            findings.append(_make_finding("S002_COMMAND_INJECTION", rel_path, i, stripped))
     return findings
 
 
@@ -341,8 +346,11 @@ def check_subprocess_regex(source: str, rel_path: str) -> list[Finding]:
 # ─────────────────────────────────────────────────────────────
 
 _DESER_CALL_NAMES = {
-    "pickle.load", "pickle.loads", "pickle.Unpickler",
-    "marshal.load", "marshal.loads",
+    "pickle.load",
+    "pickle.loads",
+    "pickle.Unpickler",
+    "marshal.load",
+    "marshal.loads",
     "shelve.open",
 }
 _YAML_UNSAFE = {"yaml.load"}
@@ -365,30 +373,35 @@ def check_deserialization_ast(
             continue
 
         if fname in _DESER_CALL_NAMES:
-            findings.append(_make_finding(
-                "S004_UNSAFE_DESERIALIZATION",
-                rel_path,
-                node.lineno,
-                _source_line(source_lines, node.lineno),
-            ))
+            findings.append(
+                _make_finding(
+                    "S004_UNSAFE_DESERIALIZATION",
+                    rel_path,
+                    node.lineno,
+                    _source_line(source_lines, node.lineno),
+                )
+            )
 
         # yaml.load without Loader=yaml.SafeLoader
         if fname in _YAML_UNSAFE:
             has_safe_loader = any(
-                kw.arg == "Loader" and (
+                kw.arg == "Loader"
+                and (
                     (isinstance(kw.value, ast.Attribute) and "Safe" in (kw.value.attr or ""))
                     or (isinstance(kw.value, ast.Name) and "Safe" in kw.value.id)
                 )
                 for kw in node.keywords
             )
             if not has_safe_loader:
-                findings.append(_make_finding(
-                    "S004_UNSAFE_DESERIALIZATION",
-                    rel_path,
-                    node.lineno,
-                    _source_line(source_lines, node.lineno),
-                    override_severity=Severity.HIGH,
-                ))
+                findings.append(
+                    _make_finding(
+                        "S004_UNSAFE_DESERIALIZATION",
+                        rel_path,
+                        node.lineno,
+                        _source_line(source_lines, node.lineno),
+                        override_severity=Severity.HIGH,
+                    )
+                )
 
     return findings
 
@@ -406,9 +419,7 @@ def check_deserialization_regex(source: str, rel_path: str) -> list[Finding]:
         if stripped.startswith("#"):
             continue
         if _DESER_REGEX.search(line):
-            findings.append(_make_finding(
-                "S004_UNSAFE_DESERIALIZATION", rel_path, i, stripped
-            ))
+            findings.append(_make_finding("S004_UNSAFE_DESERIALIZATION", rel_path, i, stripped))
     return findings
 
 
@@ -416,24 +427,28 @@ def check_deserialization_regex(source: str, rel_path: str) -> list[Finding]:
 # Rule: S005 — TLS Verification Disabled
 # ─────────────────────────────────────────────────────────────
 
-def check_tls_verify_ast(
-    tree: ast.AST, source_lines: list[str], rel_path: str
-) -> list[Finding]:
+
+def check_tls_verify_ast(tree: ast.AST, source_lines: list[str], rel_path: str) -> list[Finding]:
     findings: list[Finding] = []
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         for kw in node.keywords:
-            if kw.arg == "verify":
-                if isinstance(kw.value, ast.Constant) and kw.value.value is False:
-                    findings.append(_make_finding(
+            if (
+                kw.arg == "verify"
+                and isinstance(kw.value, ast.Constant)
+                and kw.value.value is False
+            ):
+                findings.append(
+                    _make_finding(
                         "S005_TLS_VERIFY_DISABLED",
                         rel_path,
                         node.lineno,
                         _source_line(source_lines, node.lineno),
-                    ))
-                    break
+                    )
+                )
+                break
 
     # Also check ssl._create_unverified_context
     for node in ast.walk(tree):
@@ -446,12 +461,14 @@ def check_tls_verify_ast(
         elif isinstance(func, ast.Name):
             name = func.id
         if "unverified" in name.lower() or "no_verify" in name.lower():
-            findings.append(_make_finding(
-                "S005_TLS_VERIFY_DISABLED",
-                rel_path,
-                node.lineno,
-                _source_line(source_lines, node.lineno),
-            ))
+            findings.append(
+                _make_finding(
+                    "S005_TLS_VERIFY_DISABLED",
+                    rel_path,
+                    node.lineno,
+                    _source_line(source_lines, node.lineno),
+                )
+            )
 
     return findings
 
@@ -467,15 +484,14 @@ def check_tls_verify_regex(source: str, rel_path: str) -> list[Finding]:
         if stripped.startswith("#"):
             continue
         if _TLS_REGEX.search(line):
-            findings.append(_make_finding(
-                "S005_TLS_VERIFY_DISABLED", rel_path, i, stripped
-            ))
+            findings.append(_make_finding("S005_TLS_VERIFY_DISABLED", rel_path, i, stripped))
     return findings
 
 
 # ─────────────────────────────────────────────────────────────
 # Rule: S006 — Code Injection (eval/exec)
 # ─────────────────────────────────────────────────────────────
+
 
 def check_code_injection_ast(
     tree: ast.AST, source_lines: list[str], rel_path: str
@@ -490,12 +506,14 @@ def check_code_injection_ast(
             continue
         # eval/exec with a non-literal first arg → code injection risk
         if node.args and _is_dynamic(node.args[0]):
-            findings.append(_make_finding(
-                "S006_CODE_INJECTION",
-                rel_path,
-                node.lineno,
-                _source_line(source_lines, node.lineno),
-            ))
+            findings.append(
+                _make_finding(
+                    "S006_CODE_INJECTION",
+                    rel_path,
+                    node.lineno,
+                    _source_line(source_lines, node.lineno),
+                )
+            )
         elif not node.args:
             # eval() with no args (unusual but flag for review)
             pass
@@ -514,9 +532,7 @@ def check_code_injection_regex(source: str, rel_path: str) -> list[Finding]:
         if stripped.startswith("#"):
             continue
         if _EVAL_REGEX.search(line):
-            findings.append(_make_finding(
-                "S006_CODE_INJECTION", rel_path, i, stripped
-            ))
+            findings.append(_make_finding("S006_CODE_INJECTION", rel_path, i, stripped))
     return findings
 
 
@@ -525,14 +541,16 @@ def check_code_injection_regex(source: str, rel_path: str) -> list[Finding]:
 # ─────────────────────────────────────────────────────────────
 
 _FS_DANGER_FUNCS = {
-    "shutil.rmtree", "os.remove", "os.unlink",
-    "os.rmdir", "shutil.move", "os.rename",
+    "shutil.rmtree",
+    "os.remove",
+    "os.unlink",
+    "os.rmdir",
+    "shutil.move",
+    "os.rename",
 }
 
 
-def check_dangerous_fs_ast(
-    tree: ast.AST, source_lines: list[str], rel_path: str
-) -> list[Finding]:
+def check_dangerous_fs_ast(tree: ast.AST, source_lines: list[str], rel_path: str) -> list[Finding]:
     findings: list[Finding] = []
 
     for node in ast.walk(tree):
@@ -549,12 +567,14 @@ def check_dangerous_fs_ast(
 
         # Only flag if the path argument is dynamic (variable, not literal)
         if node.args and _is_dynamic(node.args[0]):
-            findings.append(_make_finding(
-                "S007_DANGEROUS_FILESYSTEM",
-                rel_path,
-                node.lineno,
-                _source_line(source_lines, node.lineno),
-            ))
+            findings.append(
+                _make_finding(
+                    "S007_DANGEROUS_FILESYSTEM",
+                    rel_path,
+                    node.lineno,
+                    _source_line(source_lines, node.lineno),
+                )
+            )
 
     return findings
 
@@ -570,15 +590,14 @@ def check_dangerous_fs_regex(source: str, rel_path: str) -> list[Finding]:
         if stripped.startswith("#"):
             continue
         if _FS_REGEX.search(line):
-            findings.append(_make_finding(
-                "S007_DANGEROUS_FILESYSTEM", rel_path, i, stripped
-            ))
+            findings.append(_make_finding("S007_DANGEROUS_FILESYSTEM", rel_path, i, stripped))
     return findings
 
 
 # ─────────────────────────────────────────────────────────────
 # Master Scanner
 # ─────────────────────────────────────────────────────────────
+
 
 class Scanner:
     """
@@ -593,7 +612,7 @@ class Scanner:
         self,
         file_path: Path,
         project_root: Path,
-        source: Optional[str] = None,
+        source: str | None = None,
     ) -> list[Finding]:
         """
         Scan a single .py file and return all findings.
@@ -611,7 +630,7 @@ class Scanner:
 
         # Try AST parse
         try:
-            tree: Optional[ast.AST] = ast.parse(source, filename=rel_path)
+            tree: ast.AST | None = ast.parse(source, filename=rel_path)
             parse_ok = True
         except SyntaxError:
             tree = None

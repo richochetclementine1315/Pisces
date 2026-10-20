@@ -7,6 +7,7 @@ Key fixtures:
     clean_file     — a .py file with no vulnerabilities
     pisces_toml    — a minimal pisces.toml in tmp_path
 """
+
 from __future__ import annotations
 
 import textwrap
@@ -14,10 +15,10 @@ from pathlib import Path
 
 import pytest
 
-
 # ─────────────────────────────────────────────────────────────
 # Project skeleton fixtures
 # ─────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def pisces_toml(tmp_path: Path) -> Path:

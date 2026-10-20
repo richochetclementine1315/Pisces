@@ -219,3 +219,8 @@ __marimo__/
 
 # docs
 SafePatch_project_docs/
+
+# Others
+pisces.toml
+.pisces/
+test_vuln.py

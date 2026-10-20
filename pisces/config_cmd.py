@@ -9,13 +9,14 @@ What it does:
     - Validates that the chosen provider has a key available in the environment
     - Never reads or writes API keys to pisces.toml
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
+from rich import box
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
-from rich import box
 
 from pisces.config_manager import (
     PROVIDER_DEFAULTS,
@@ -34,10 +35,10 @@ from pisces.tui import (
     print_warning,
 )
 
-
 # ─────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────
+
 
 def run_config(project_root: Path, *, show_only: bool = False) -> int:
     """
@@ -90,6 +91,7 @@ def run_config(project_root: Path, *, show_only: bool = False) -> int:
 # Current config display table
 # ─────────────────────────────────────────────────────────────
 
+
 def _print_config_table(cfg: PiscesConfig, project_root: Path) -> None:
     """Print a rich table showing the current configuration."""
     table = Table(
@@ -101,23 +103,27 @@ def _print_config_table(cfg: PiscesConfig, project_root: Path) -> None:
         show_lines=False,
         padding=(0, 2),
     )
-    table.add_column("Setting",  style="dim",   min_width=22)
-    table.add_column("Value",    style="white",  min_width=30)
-    table.add_column("Source",   style="muted",  min_width=16)
+    table.add_column("Setting", style="dim", min_width=22)
+    table.add_column("Value", style="white", min_width=30)
+    table.add_column("Source", style="muted", min_width=16)
 
     # API key status (env var check)
     has_key = check_api_key_available(cfg.llm.provider)
     key_status = "[success]✓ Found in env[/]" if has_key else "[high]✗ Not set[/]"
 
-    table.add_row("llm.provider",          f"[magenta]{cfg.llm.provider}[/]",         "pisces.toml")
-    table.add_row("llm.model",             f"[cyan]{cfg.llm.model}[/]",               "pisces.toml")
-    table.add_row("API key",               key_status,                                 "env var")
-    table.add_row("repair.max_attempts",   str(cfg.repair.max_attempts),               "pisces.toml")
-    table.add_row("repair.require_approval",
-                  "[success]true[/]" if cfg.repair.require_approval else "[high]false[/]",
-                  "pisces.toml")
-    table.add_row("validation.test_command", f"[code]{cfg.validation.test_command}[/]","pisces.toml")
-    table.add_row("Config file",           str(project_root / "pisces.toml"),          "—")
+    table.add_row("llm.provider", f"[magenta]{cfg.llm.provider}[/]", "pisces.toml")
+    table.add_row("llm.model", f"[cyan]{cfg.llm.model}[/]", "pisces.toml")
+    table.add_row("API key", key_status, "env var")
+    table.add_row("repair.max_attempts", str(cfg.repair.max_attempts), "pisces.toml")
+    table.add_row(
+        "repair.require_approval",
+        "[success]true[/]" if cfg.repair.require_approval else "[high]false[/]",
+        "pisces.toml",
+    )
+    table.add_row(
+        "validation.test_command", f"[code]{cfg.validation.test_command}[/]", "pisces.toml"
+    )
+    table.add_row("Config file", str(project_root / "pisces.toml"), "—")
 
     console.print()
     console.print(table)
@@ -128,6 +134,7 @@ def _print_config_table(cfg: PiscesConfig, project_root: Path) -> None:
 # Interactive wizard
 # ─────────────────────────────────────────────────────────────
 
+
 def _run_wizard(cfg: PiscesConfig) -> PiscesConfig:
     """Run an interactive prompt-based config wizard. Returns updated cfg."""
     console.print("[bold]Configure pisces[/] [dim](<press Enter to keep current value>)[/]")
@@ -135,25 +142,25 @@ def _run_wizard(cfg: PiscesConfig) -> PiscesConfig:
 
     # ── LLM Provider ────────────────────────────────────────
     console.print(f"[dim]Supported providers:[/] {', '.join(SUPPORTED_PROVIDERS)}")
-    provider = Prompt.ask(
-        "  [bold magenta]LLM provider[/]",
-        default=cfg.llm.provider,
-        console=console,
-    ).lower().strip()
+    provider = (
+        Prompt.ask(
+            "  [bold magenta]LLM provider[/]",
+            default=cfg.llm.provider,
+            console=console,
+        )
+        .lower()
+        .strip()
+    )
 
     if provider not in SUPPORTED_PROVIDERS:
-        print_warning(
-            f"Unknown provider '{provider}'. Keeping current: {cfg.llm.provider}"
-        )
+        print_warning(f"Unknown provider '{provider}'. Keeping current: {cfg.llm.provider}")
         provider = cfg.llm.provider
 
     # ── Model ────────────────────────────────────────────────
     default_model = PROVIDER_DEFAULTS.get(provider, cfg.llm.model)
     if provider != cfg.llm.provider:
         # Provider changed → suggest new provider's default model
-        console.print(
-            f"  [dim]Default model for {provider}:[/] [cyan]{default_model}[/]"
-        )
+        console.print(f"  [dim]Default model for {provider}:[/] [cyan]{default_model}[/]")
 
     model = Prompt.ask(
         "  [bold cyan]Model name[/]",
@@ -177,9 +184,7 @@ def _run_wizard(cfg: PiscesConfig) -> PiscesConfig:
 
     # ── Require HITL approval ────────────────────────────────
     console.print()
-    console.print(
-        "  [dim]Human approval (HITL) means pisces will ask before modifying source.[/]"
-    )
+    console.print("  [dim]Human approval (HITL) means pisces will ask before modifying source.[/]")
     require_approval = Confirm.ask(
         "  [bold]Require human approval before patching?[/]",
         default=cfg.repair.require_approval,
@@ -195,11 +200,11 @@ def _run_wizard(cfg: PiscesConfig) -> PiscesConfig:
     ).strip()
 
     # ── Apply ────────────────────────────────────────────────
-    cfg.llm.provider             = provider
-    cfg.llm.model                = model
-    cfg.repair.max_attempts      = max_attempts
-    cfg.repair.require_approval  = require_approval
-    cfg.validation.test_command  = test_command
+    cfg.llm.provider = provider
+    cfg.llm.model = model
+    cfg.repair.max_attempts = max_attempts
+    cfg.repair.require_approval = require_approval
+    cfg.validation.test_command = test_command
 
     return cfg
 
@@ -207,6 +212,7 @@ def _run_wizard(cfg: PiscesConfig) -> PiscesConfig:
 # ─────────────────────────────────────────────────────────────
 # API key availability check (advisory only)
 # ─────────────────────────────────────────────────────────────
+
 
 def _check_provider_key(provider: str) -> None:
     """Print a reminder if the provider's API key is not set."""
@@ -219,6 +225,7 @@ def _check_provider_key(provider: str) -> None:
             print_step_ok(f"'{provider}' is a local provider — no API key needed ✓")
         else:
             from pisces.config_manager import _PROVIDER_ENV_VARS
+
             env_var = _PROVIDER_ENV_VARS.get(provider, ["?"])[0]
             print_warning(
                 f"API key for '{provider}' not found.\n"
