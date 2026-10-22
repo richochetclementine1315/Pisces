@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pisces-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "AI-assisted,self healing human-governed Python security remediation patcher"
 readme = "README.md"
 license = { text = "MIT" }

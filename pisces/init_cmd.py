@@ -3,7 +3,7 @@
 # Can be run multiple times(idempotent).abs
 # creates pisces.toml and the .pisces/ state directory
 # NEVER destructively overwrites without --force
-# Adds .pisces to .gitignore if it exists.abs
+# Adds Pisces-generated files to .gitignore.
 from __future__ import annotations
 
 import json
@@ -150,10 +150,10 @@ def _create_dir(path: Path) -> None:
         return False
 
 
-def _init_context_json(path: Path, project_root: Path, *, force: bool) -> None:
+def _init_context_json(path: Path, project_root: Path, *, force: bool) -> bool:
     if path.exists() and not force:
         print_step_ok("context.json already exists - skipping")
-        return
+        return True
 
     print_step_running("Writing context.json ...")
     try:
@@ -162,32 +162,46 @@ def _init_context_json(path: Path, project_root: Path, *, force: bool) -> None:
             encoding="utf-8",
         )
         print_step_ok("context.json initialized")
+        return True
     except OSError as e:
         print_step_fail(f"Could not write context.json: {e}")
+        return False
 
 
 def _update_gitignore(project_root: Path) -> None:
-    """Ensure .pisces/ is listed in .gitignore."""
+    """Ensure Pisces-generated files are listed in .gitignore."""
     gitignore = project_root / ".gitignore"
-    entry = ".pisces/"
+    entries = (".pisces/", "pisces.toml")
 
     if not gitignore.exists():
-        print_step_running("No .ignore found - creating one ...")
+        print_step_running("No .gitignore found - creating one ...")
         try:
-            gitignore.write_text(f"# pisces state directory\n{entry}\n", encoding="utf-8")
-            print_step_ok(".gitignore created with .pisces/entry")
+            gitignore.write_text(
+                "# pisces generated files\n"
+                + "".join(f"{entry}\n" for entry in entries),
+                encoding="utf-8",
+            )
+            print_step_ok(".gitignore created with Pisces entries")
         except OSError as e:
-            print_warning(f"could not create .gitignore: {e}")
+            print_warning(f"Could not create .gitignore: {e}")
         return
 
-    content = gitignore.read_text(encoding="utf-8")
-    if entry in content or ".pisces" in content:
-        print_step_ok(".gitignore already contains .pisces entry - skipping")
+    try:
+        content = gitignore.read_text(encoding="utf-8")
+    except OSError as e:
+        print_warning(f"Could not read .gitignore: {e}")
+        return
+
+    existing_entries = {line.strip() for line in content.splitlines()}
+    missing_entries = [entry for entry in entries if entry not in existing_entries]
+    if not missing_entries:
+        print_step_ok(".gitignore already contains Pisces entries - skipping")
         return
 
     try:
         with gitignore.open("a", encoding="utf-8") as f:
-            f.write(f"\n# pisces state directory\n{entry}\n")
-        print_step_ok("Added .pisces/ to .gitignore")
+            f.write("\n# pisces generated files\n")
+            f.writelines(f"{entry}\n" for entry in missing_entries)
+        print_step_ok("Added Pisces entries to .gitignore")
     except OSError as e:
         print_warning(f"Could not update .gitignore: {e}")

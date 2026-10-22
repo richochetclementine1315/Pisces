@@ -61,7 +61,7 @@ _BANNER_LINES = [
     ("  ╚═╝      ╚═╝ ╚══════╝  ╚═════╝  ╚══════╝ ╚══════╝ ", "bold blue"),
 ]
 _TAGLINE = "  AI-assisted Python Security · Detect · Patch · Validate · Self-Heal"
-_VERSION_LINE = "  v0.1.0  ·  MIT License  ·  pip install pisces"
+_VERSION_LINE = "  v0.1.1  ·  MIT License  ·  pip install pisces"
 
 
 def print_banner() -> None:
