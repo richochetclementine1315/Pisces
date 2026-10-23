@@ -4,9 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pisces-cli"
-version = "0.1.1"
+version = "0.1.2"
 description = "AI-assisted,self healing human-governed Python security remediation patcher"
-readme = "README.md"
+readme = "PYPI_README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [
