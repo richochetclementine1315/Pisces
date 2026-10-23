@@ -125,24 +125,13 @@ the selected severity threshold.
 | Dangerous Filesystem | `S007` | MEDIUM | Destructive operations on variable paths |
 
 ## Architecture and Workflow
+<p align="center">
 
 ```mermaid
-flowchart TD
-    A[pisces scan] --> B[Discover project Python files]
-    B --> C[Exclude .venv* and configured paths]
-    C --> D[AST plus regex scanner]
-    D --> E[Findings cache]
-    E --> F[pisces explain or pisces fix]
-    F --> G[LLM context and response]
-    G --> H{Fix approved?}
-    H -- No --> I[No source change]
-    H -- Yes --> J[Checkpoint and atomically apply patch]
-    J --> K[Run configured tests]
-    K --> L{Pass?}
-    L -- Yes --> M[Repair history]
-    L -- No --> N[Rollback and retry]
-    N --> G
+<img width="1312" height="1199" alt="Pisces Workflow Flowchart" src="https://github.com/user-attachments/assets/c463cbf3-73f8-4c5e-b251-f1acd6ab1b86" />
+
 ```
+</p>
 
 The deterministic scanner does not call an LLM. LLMs are used for explanations,
 patch generation, and optional patch judging.
