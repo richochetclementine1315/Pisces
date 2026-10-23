@@ -126,12 +126,16 @@ the selected severity threshold.
 
 ## Architecture and Workflow
 <p align="center">
-
-```mermaid
-<img width="1312" height="1199" alt="Pisces Workflow Flowchart" src="https://github.com/user-attachments/assets/c463cbf3-73f8-4c5e-b251-f1acd6ab1b86" />
-
-```
+  <img
+    width="680"
+    alt="Pisces Security Remediation Workflow"
+    src="https://github.com/user-attachments/assets/c463cbf3-73f8-4c5e-b251-f1acd6ab1b86"
+  />
 </p>
+
+The workflow covers project initialization, deterministic security scanning, LLM-powered explanations and patch generation, human approval, checkpointing, test validation, rollback, and self-healing retries.
+
+The deterministic scanner does not call an LLM. LLMs are used for explanations, patch generation, and optional patch judging. Source changes require human approval by default.
 
 The deterministic scanner does not call an LLM. LLMs are used for explanations,
 patch generation, and optional patch judging.
