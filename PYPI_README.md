@@ -11,6 +11,26 @@
   <b>AI-Assisted · Self-Healing · Human-Governed Python Security Remediation Patcher</b>
 </p>
 
+<p align="center">
+  <a href="https://pypi.org/project/pisces-cli/">
+    <img src="https://img.shields.io/pypi/v/pisces-cli?color=7c3aed&logo=pypi&logoColor=white&label=PyPI" alt="PyPI Version">
+  </a>
+  <a href="https://pypi.org/project/pisces-cli/">
+    <img src="https://img.shields.io/pypi/pyversions/pisces-cli?color=0ea5e9&logo=python&logoColor=white" alt="Python Versions">
+  </a>
+  <a href="https://github.com/richochetclementine1315/pisces/actions/workflows/ci.yml">
+    <img src="https://github.com/richochetclementine1315/pisces/actions/workflows/ci.yml/badge.svg" alt="CI Status">
+  </a>
+  <a href="https://github.com/richochetclementine1315/pisces/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-22c55e?logo=opensourceinitiative&logoColor=white" alt="License: MIT">
+  </a>
+  <a href="https://github.com/richochetclementine1315/pisces/blob/main/pyproject.toml">
+    <img src="https://img.shields.io/badge/build-hatchling-f97316?logo=pypa&logoColor=white" alt="Build: Hatchling">
+  </a>
+  <img src="https://img.shields.io/badge/linter-ruff-db2777?logo=ruff&logoColor=white" alt="Linter: Ruff">
+  <img src="https://img.shields.io/badge/type--checked-mypy-2563eb?logo=python&logoColor=white" alt="Type Checked: mypy">
+</p>
+
 ## Overview
 
 Pisces is a Python security CLI that detects common vulnerabilities, explains
@@ -24,12 +44,32 @@ human-approved by default.
 - Seven built-in rules for secrets, command injection, unsafe subprocesses,
   unsafe deserialization, disabled TLS verification, code injection, and
   dangerous filesystem operations.
-- Excludes `.venv`, `.venv-test`, `.venv310`, and other `.venv*` directories.
+- Excludes `.venv`, `__pycache__`, and other irrelevant directories.
 - LLM explanations with source snippets and AST context.
 - Human-in-the-loop patch approval.
 - Atomic patching, checkpoints, rollback, and self-healing retries.
 - Local repair history and a debounced watch mode.
 - OpenAI, Anthropic, Gemini, Groq, Ollama, and LM Studio support.
+
+## ⚙️ How it Works
+
+<p align="center">
+  <img
+    width="450"
+    alt="How Pisces Works — Scan to History"
+    src="https://github.com/user-attachments/assets/7f421fd1-c12a-48f6-bc34-46794d67e958"
+  />
+</p>
+
+## ⚙️ The Repair State Machine
+
+<p align="center">
+  <img
+    width="450"
+    alt="How Pisces Works — Scan to History"
+    src="https://github.com/user-attachments/assets/319ae541-a87e-4f91-a860-112660c77873"
+  />
+</p>
 
 ## Installation
 
@@ -125,24 +165,17 @@ the selected severity threshold.
 | Dangerous Filesystem | `S007` | MEDIUM | Destructive operations on variable paths |
 
 ## Architecture and Workflow
+<p align="center">
+  <img
+    width="680"
+    alt="Pisces Security Remediation Workflow"
+    src="https://github.com/user-attachments/assets/c463cbf3-73f8-4c5e-b251-f1acd6ab1b86"
+  />
+</p>
 
-```mermaid
-flowchart TD
-    A[pisces scan] --> B[Discover project Python files]
-    B --> C[Exclude .venv* and configured paths]
-    C --> D[AST plus regex scanner]
-    D --> E[Findings cache]
-    E --> F[pisces explain or pisces fix]
-    F --> G[LLM context and response]
-    G --> H{Fix approved?}
-    H -- No --> I[No source change]
-    H -- Yes --> J[Checkpoint and atomically apply patch]
-    J --> K[Run configured tests]
-    K --> L{Pass?}
-    L -- Yes --> M[Repair history]
-    L -- No --> N[Rollback and retry]
-    N --> G
-```
+The workflow covers project initialization, deterministic security scanning, LLM-powered explanations and patch generation, human approval, checkpointing, test validation, rollback, and self-healing retries.
+
+The deterministic scanner does not call an LLM. LLMs are used for explanations, patch generation, and optional patch judging. Source changes require human approval by default.
 
 The deterministic scanner does not call an LLM. LLMs are used for explanations,
 patch generation, and optional patch judging.
