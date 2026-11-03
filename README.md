@@ -395,6 +395,7 @@ pip install -e ".[dev]"
 pytest tests/ -v
 ruff check pisces/ tests/
 ```
+For more details visit [`CONTRIBUTING.md`](https://github.com/richochetclementine1315/Pisces/blob/main/CONTRIBUTING.md) file.
 
 ---
 

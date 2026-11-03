@@ -183,6 +183,7 @@ patch generation, and optional patch judging.
 ## Links
 
 - **GitHub:** https://github.com/richochetclementine1315/pisces
+- **Official Documentation** https://pisces-cli.vercel.app/
 - **Issues:** https://github.com/richochetclementine1315/pisces/issues
 - **PyPI:** https://pypi.org/project/pisces-cli/
 
