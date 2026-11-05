@@ -26,6 +26,12 @@ jobs:
           python -m pip install -e ".[dev]"
           python -m pip install build
 
+      - name: Verify release tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python -c "import os, pathlib, tomllib; version = tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version']; tag = os.environ['RELEASE_TAG'].removeprefix('v'); assert version == tag, f'Release tag {tag} does not match package version {version}'"
+
       - name: Lint with Ruff
         run: ruff check pisces/ tests/
 
